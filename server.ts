@@ -49,6 +49,58 @@ app.get(["/api/download-zip", "/the-commissary-project.zip"], (_req, res) => {
   return res.status(404).json({ error: "ZIP package is currently being generated. Please retry in a few seconds." });
 });
 
+// REST API to parse spoken inventory counts with Google Gemini AI
+app.post("/api/ai/voice-parse", async (req, res) => {
+  try {
+    const { spokenText, availableItemNames } = req.body;
+    if (!spokenText || typeof spokenText !== "string") {
+      return res.status(400).json({ error: "Spoken transcript text is required." });
+    }
+
+    const ai = getAiClient();
+    if (!ai) {
+      return res.json({ matches: [], notice: "Gemini API key not configured, local NLP parser active" });
+    }
+
+    const prompt = `You are an AI inventory voice assistant in a restaurant commissary/warehouse.
+A kitchen or bar employee just spoke this command while counting inventory: "${spokenText}".
+Here is the list of available item names from the current sheet:
+${JSON.stringify((availableItemNames || []).slice(0, 80))}
+
+Your task is to identify which items were mentioned and what count or quantity was given.
+Rules:
+- Match spoken item phrases even with typos, accents, or shorthand (e.g., "cheeken" -> "Chicken Breast", "carnitas five" -> "Carnitas", count 5).
+- If walk-in and bar counts are mentioned (e.g., "Corona 8 walk in and 3 bar"), return wlkInCount: 8, barCount: 3, and count: 11.
+- If multiple items are in one sentence, extract all of them.
+- Return ONLY valid JSON with this exact structure:
+{
+  "matches": [
+    {
+      "matchedItemName": "exact item name from candidate list",
+      "count": 5,
+      "wlkInCount": null,
+      "barCount": null,
+      "spokenPhrase": "phrase snippet spoken"
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const parsedJson = JSON.parse(response.text || '{"matches":[]}');
+    return res.json(parsedJson);
+  } catch (err: any) {
+    console.error("[VOICE_AI_PARSE_ERROR]", err);
+    return res.status(500).json({ error: "Failed to parse voice command with AI", details: err?.message });
+  }
+});
+
 // Git status inspection endpoint
 app.get("/api/github/status", (_req, res) => {
   try {

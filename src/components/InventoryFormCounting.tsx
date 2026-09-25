@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { InventoryForm, SubmissionItem, FormSubmission } from '../types';
 import { sampleItems, sampleSubmissions } from '../data/sampleData';
 import { anitasFoodCM1Items, anitasFoodCM2Items } from '../data/anitasSheetData';
@@ -6,8 +6,9 @@ import { printHtmlViaIframe } from '../utils/printHelper';
 import { exportAnitaSheetToExcel } from '../utils/excelExport';
 import { 
   Save, Check, Search, Filter, Camera, RefreshCw, Sparkles, 
-  Volume2, Mic, Printer, FileSpreadsheet, LayoutGrid, Table as TableIcon,
-  AlertTriangle, Clock, ShieldAlert, CheckCircle2, ChevronRight, HelpCircle
+  Volume2, VolumeX, Mic, MicOff, Printer, FileSpreadsheet, LayoutGrid, Table as TableIcon,
+  AlertTriangle, Clock, ShieldAlert, CheckCircle2, ChevronRight, HelpCircle,
+  ArrowLeft, ArrowRight, Plus, Minus
 } from 'lucide-react';
 
 interface InventoryFormCountingProps {
@@ -25,7 +26,23 @@ export default function InventoryFormCounting({
   onSubmitSuccess,
   activeVoiceParsedCmd
 }: InventoryFormCountingProps) {
-  // View mode: 'sheet' (Adaptive Mobile List on phone / Grid on tablet), 'cards' (Touch Cards), or 'table' (Raw Grid Table)
+  // 🎯 Counting Phase: 'counting' (Fast count showing ONLY Item Name & Count) vs 'review' (Everything shown for checking)
+  const [countingPhase, setCountingPhase] = useState<'counting' | 'review'>('counting');
+
+  // 🎙️ Input method during counting: 'manual' (keypad/touch/buttons) vs 'voice' (AI speech)
+  const [countInputMethod, setCountInputMethod] = useState<'manual' | 'voice'>('manual');
+
+  // 🔊 Voice recognition & AI speech engine states
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceFeedbackMsg, setVoiceFeedbackMsg] = useState('');
+  const [lastCountedItemId, setLastCountedItemId] = useState<string | null>(null);
+  const [speechSynthesisEnabled, setSpeechSynthesisEnabled] = useState(true);
+  const [continuousListening, setContinuousListening] = useState(false);
+  const [aiParsingInProgress, setAiParsingInProgress] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // View mode in Review: 'sheet' (Adaptive Mobile List on phone / Grid on tablet), 'cards' (Touch Cards), or 'table' (Raw Grid Table)
   const [viewMode, setViewMode] = useState<'sheet' | 'cards' | 'table'>('sheet');
 
   // Active section or 'ALL'
@@ -258,6 +275,246 @@ export default function InventoryFormCounting({
         isChecked: true
       }
     }));
+  };
+
+  // ➕ Quick increment / decrement helpers for Fast Counting Mode
+  const handleIncrementCount = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.currentCount || 0;
+    handleCountChange(itemId, String(Math.max(0, cur + step)));
+  };
+
+  const handleDecrementCount = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.currentCount || 0;
+    handleCountChange(itemId, String(Math.max(0, cur - step)));
+  };
+
+  const handleIncrementWlkIn = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.wlkInCount || 0;
+    handleWlkInChange(itemId, String(Math.max(0, cur + step)));
+  };
+
+  const handleDecrementWlkIn = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.wlkInCount || 0;
+    handleWlkInChange(itemId, String(Math.max(0, cur - step)));
+  };
+
+  const handleIncrementBar = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.barCount || 0;
+    handleBarCountChange(itemId, String(Math.max(0, cur + step)));
+  };
+
+  const handleDecrementBar = (itemId: string, step: number = 1) => {
+    const cur = itemsMap[itemId]?.barCount || 0;
+    handleBarCountChange(itemId, String(Math.max(0, cur - step)));
+  };
+
+  // 🔊 Audio speak-back confirmation for hands-free counting
+  const speakFeedback = (text: string) => {
+    if (!speechSynthesisEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("Speech synthesis error", e);
+    }
+  };
+
+  // 🎙️ Process voice input through smart local NLP + Gemini AI fallback
+  const handleProcessSpokenText = async (rawText: string) => {
+    if (!rawText.trim()) return;
+    setVoiceTranscript(rawText);
+    const lower = rawText.toLowerCase().trim();
+    const itemsList = Object.values(itemsMap) as SubmissionItem[];
+
+    // 1. Dual Beer matching (walk-in and bar)
+    const walkInBarRegex = /(.*?)(?:walk\s*in|walkin)\s*(\d+(?:\.\d+)?).*?(?:bar|front)\s*(\d+(?:\.\d+)?)/i;
+    const wlkMatch = lower.match(walkInBarRegex);
+    if (wlkMatch) {
+      const phraseItem = wlkMatch[1].trim();
+      const wlkVal = parseFloat(wlkMatch[2]);
+      const barVal = parseFloat(wlkMatch[3]);
+      const target = itemsList.find(i => 
+        i.name.toLowerCase().includes(phraseItem) || phraseItem.includes(i.name.toLowerCase())
+      );
+      if (target) {
+        applyVoiceCount(target.itemId, wlkVal + barVal, wlkVal, barVal);
+        return;
+      }
+    }
+
+    // 2. Standard Pattern: "Item Name [number]" or "[number] Item Name"
+    let matchedItem: SubmissionItem | undefined;
+    let foundCount: number | null = null;
+
+    for (const item of itemsList) {
+      const cleanItemName = item.name.toLowerCase().replace(/[^\w\s]/g, '');
+      const words = cleanItemName.split(' ').filter(w => w.length > 2);
+      if (lower.includes(cleanItemName) || (words.length > 0 && words.every(w => lower.includes(w)))) {
+        const numMatches = lower.match(/\b\d+(?:\.\d+)?\b/g);
+        if (numMatches && numMatches.length > 0) {
+          foundCount = parseFloat(numMatches[numMatches.length - 1]);
+          matchedItem = item;
+          break;
+        }
+      }
+    }
+
+    if (matchedItem && foundCount !== null) {
+      applyVoiceCount(matchedItem.itemId, foundCount);
+      return;
+    }
+
+    // 3. Fallback to Gemini AI Voice Understanding endpoint
+    setAiParsingInProgress(true);
+    try {
+      const res = await fetch('/api/ai/voice-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          spokenText: rawText,
+          availableItemNames: itemsList.map(i => i.name)
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.matches && data.matches.length > 0) {
+          data.matches.forEach((m: any) => {
+            const target = itemsList.find(i => 
+              i.name.toLowerCase() === m.matchedItemName.toLowerCase() ||
+              i.name.toLowerCase().includes(m.matchedItemName.toLowerCase())
+            );
+            if (target && m.count !== null && m.count !== undefined) {
+              applyVoiceCount(target.itemId, m.count, m.wlkInCount, m.barCount);
+            }
+          });
+          setAiParsingInProgress(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Gemini voice parse fallback error", e);
+    }
+    setAiParsingInProgress(false);
+    setVoiceFeedbackMsg(`Could not recognize count for: "${rawText}". Try: "Item Name [number]"`);
+  };
+
+  const applyVoiceCount = (itemId: string, count: number, wlkIn?: number | null, bar?: number | null) => {
+    const item = itemsMap[itemId];
+    if (!item) return;
+
+    if (wlkIn !== null && wlkIn !== undefined && bar !== null && bar !== undefined) {
+      const total = wlkIn + bar;
+      const suggested = Math.max(0, item.parLevel - total);
+      setItemsMap(prev => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          wlkInCount: wlkIn,
+          barCount: bar,
+          currentCount: total,
+          suggestedOrder: suggested,
+          finalOrder: suggested,
+          total: total + suggested,
+          isChecked: true
+        }
+      }));
+      setLastCountedItemId(itemId);
+      const msg = `✓ Set ${item.name}: Walk-in ${wlkIn}, Bar ${bar} (Total ${total})`;
+      setVoiceFeedbackMsg(msg);
+      speakFeedback(`${item.name}: set to ${total}`);
+    } else {
+      const suggested = Math.max(0, item.parLevel - count);
+      setItemsMap(prev => ({
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          currentCount: count,
+          suggestedOrder: suggested,
+          finalOrder: suggested,
+          total: count + suggested,
+          isChecked: true
+        }
+      }));
+      setLastCountedItemId(itemId);
+      const msg = `✓ Set ${item.name} to ${count}`;
+      setVoiceFeedbackMsg(msg);
+      speakFeedback(`${item.name}: ${count}`);
+    }
+  };
+
+  // Browser Speech Recognition Lifecycle
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const rec = new SpeechRecognition();
+    rec.continuous = continuousListening;
+    rec.interimResults = false;
+    rec.lang = 'en-US';
+
+    rec.onstart = () => {
+      setIsVoiceListening(true);
+      setVoiceFeedbackMsg("Listening hands-free... Say item name and count (e.g. 'Tortilla 15')");
+    };
+
+    rec.onresult = (event: any) => {
+      const lastIndex = event.results.length - 1;
+      const transcript = event.results[lastIndex][0].transcript;
+      handleProcessSpokenText(transcript);
+    };
+
+    rec.onerror = (e: any) => {
+      console.warn("Speech error:", e.error);
+      if (e.error !== 'no-speech') {
+        setIsVoiceListening(false);
+      }
+    };
+
+    rec.onend = () => {
+      if (countInputMethod === 'voice' && continuousListening) {
+        try {
+          rec.start();
+        } catch {}
+      } else {
+        setIsVoiceListening(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+
+    return () => {
+      try {
+        rec.abort();
+      } catch {}
+    };
+  }, [continuousListening, countInputMethod, itemsMap]);
+
+  const toggleVoiceListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Browser speech recognition is not supported in this frame. You can use Manual Count or the quick test simulation chips!");
+      return;
+    }
+
+    if (isVoiceListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+      setIsVoiceListening(false);
+      setVoiceFeedbackMsg("Voice recognition paused. Tap mic to resume.");
+    } else {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.warn("Speech start warning:", e);
+        }
+      }
+    }
   };
 
   // Final Order override
@@ -707,8 +964,423 @@ export default function InventoryFormCounting({
   return (
     <div className="space-y-5 font-sans text-gray-800">
       
-      {/* 1. REAL-WORLD STORE SHEET HEADER BLOCK (Identical to Anita's physical store clipboard sheets) */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
+      {/* 🎯 FAST COUNTING PHASE (Item Name & Count ONLY) */}
+      {countingPhase === 'counting' ? (
+        <div className="space-y-4 animate-fadeIn">
+          
+          {/* Header Card */}
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-white p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded uppercase">
+                    STORE: {form.locationCode}
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded">
+                    ACTIVE COUNTING
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black font-display text-white mt-1.5">{form.title}</h2>
+                <p className="text-xs text-slate-300 font-mono mt-0.5">
+                  Progress: <strong className="text-emerald-400 font-bold">{stats.totalCounted} of {stats.totalItems}</strong> items entered ({Math.round((stats.totalCounted / Math.max(1, stats.totalItems)) * 100)}%)
+                </p>
+              </div>
+
+              {/* Big Review & Check Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCountingPhase('review');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 sm:px-6 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+              >
+                <span>Check & Review ({stats.totalCounted}/{stats.totalItems})</span>
+                <ArrowRight className="w-4 h-4 stroke-3" />
+              </button>
+            </div>
+
+            {/* Mode Switcher: ✍️ MANUAL COUNT vs 🎙️ VOICE COUNT (AI) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCountInputMethod('manual');
+                    if (isVoiceListening && recognitionRef.current) {
+                      try { recognitionRef.current.stop(); } catch {}
+                      setIsVoiceListening(false);
+                    }
+                  }}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                    countInputMethod === 'manual'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>✍️ Manual Count</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCountInputMethod('voice')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                    countInputMethod === 'voice'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Mic className="w-4 h-4" />
+                  <span>🎙️ Voice Count (AI)</span>
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-300 font-mono flex items-center gap-2">
+                <span>Shift: <strong className="text-amber-400">{shiftSlot}</strong></span>
+                <span>•</span>
+                <span>MOD: <strong className="text-slate-100">{managerOnDuty}</strong></span>
+              </div>
+            </div>
+
+            {/* 🎙️ Voice Assistant Control Deck (Active in Voice Count mode) */}
+            {countInputMethod === 'voice' && (
+              <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5 sm:p-4 space-y-3 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={toggleVoiceListening}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg cursor-pointer ${
+                        isVoiceListening
+                          ? 'bg-red-500 text-white animate-pulse shadow-red-500/50'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                      }`}
+                      title={isVoiceListening ? 'Tap to pause microphone' : 'Tap to start voice recognition'}
+                    >
+                      {isVoiceListening ? <Mic className="w-6 h-6 stroke-3" /> : <Mic className="w-6 h-6" />}
+                    </button>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-sm text-white">
+                          {isVoiceListening ? '🎙️ Listening Hands-Free...' : '🎙️ Tap Mic to Start Voice Counting'}
+                        </h4>
+                        {isVoiceListening && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping inline-block"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                        Say item name and count (e.g., <i>"Tortilla 15"</i> or <i>"Carnitas 6"</i>)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Read-back voice audio toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition border ${
+                        speechSynthesisEnabled
+                          ? 'bg-emerald-950/80 border-emerald-600 text-emerald-400'
+                          : 'bg-slate-900 border-slate-700 text-slate-500'
+                      }`}
+                      title="Speak confirmation out loud after each item is counted"
+                    >
+                      {speechSynthesisEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                      <span>{speechSynthesisEnabled ? 'Voice Confirm: ON' : 'Voice Confirm: OFF'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Transcript / Feedback banner */}
+                <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-300 truncate mr-2">
+                    {voiceFeedbackMsg || (voiceTranscript ? `Heard: "${voiceTranscript}"` : "Waiting for speech... Speak clearly near phone or headset.")}
+                  </span>
+                  {aiParsingInProgress && (
+                    <span className="text-amber-400 text-[10px] font-bold flex items-center gap-1 shrink-0">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> AI Analyzing...
+                    </span>
+                  )}
+                </div>
+
+                {/* Quick Voice Simulation Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] font-mono">
+                  <span className="text-slate-500 uppercase text-[9px] font-bold">Quick Speech Tests:</span>
+                  {displayedItems.slice(0, 4).map((it, idx) => (
+                    <button
+                      key={it.itemId}
+                      type="button"
+                      onClick={() => handleProcessSpokenText(`${it.name} ${idx === 0 ? 12 : idx === 1 ? 5 : 8}`)}
+                      className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 rounded-md transition cursor-pointer"
+                    >
+                      "{it.name} {idx === 0 ? 12 : idx === 1 ? 5 : 8}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section Pills & Search Bar */}
+          <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setActiveSection('ALL')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSection === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All Sections ({Object.keys(itemsMap).length})
+              </button>
+
+              {form.sections.map(section => {
+                const isActive = section.name === activeSection;
+                return (
+                  <button
+                    key={section.name}
+                    onClick={() => setActiveSection(section.name)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>{section.name}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {section.itemIds.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative md:w-72">
+              <input
+                type="text"
+                placeholder="Search item name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 text-xs border border-gray-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:border-amber-500 transition"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 📋 THE FAST COUNTING LIST (ONLY ITEM NAME & COUNT SHOWN!) */}
+          <div className="space-y-2.5">
+            {displayedItems.length === 0 ? (
+              <div className="py-12 px-4 text-center bg-white border border-dashed rounded-2xl text-slate-400 font-mono text-xs">
+                No products found matching "{searchQuery}" in {activeSection}
+              </div>
+            ) : (
+              displayedItems.map((item, index) => {
+                const isBeer = isBarSheet && (item.category === 'Beer Bottles' || item.category === 'Beer Draft' || item.isBeer);
+                const isLastUpdated = lastCountedItemId === item.itemId;
+
+                return (
+                  <div
+                    key={item.itemId}
+                    className={`bg-white border rounded-2xl p-3.5 sm:p-4 shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isLastUpdated
+                        ? 'ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-400'
+                        : item.currentCount > 0
+                        ? 'border-emerald-300 bg-emerald-50/15'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    {/* ONLY ITEM NAME! */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="font-mono text-xs font-black bg-slate-100 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+                        #{index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="font-black text-slate-900 text-base sm:text-lg leading-snug truncate">
+                          {item.requiresDating && <span className="text-rose-600 font-black mr-1">*</span>}
+                          {item.name}
+                        </h3>
+                        {item.currentCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 font-bold mt-0.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Counted: <strong className="text-emerald-950 font-black">{item.currentCount}</strong> {item.unit}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-mono text-slate-400 mt-0.5 block">
+                            Unit: {item.unit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ONLY COUNT CONTROLS! */}
+                    {isBeer ? (
+                      // Dual Walk-in & Bar count for Beer items
+                      <div className="flex items-center gap-3 shrink-0">
+                        {/* Walk-in count */}
+                        <div className="flex flex-col items-center bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
+                          <span className="text-[9px] uppercase font-bold text-slate-500 font-mono mb-1">Walk-In</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDecrementWlkIn(item.itemId, 1)}
+                              className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.wlkInCount === 0 ? '' : item.wlkInCount}
+                              onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              className="w-14 text-center font-mono font-black text-base bg-emerald-100 text-emerald-950 border border-emerald-400 py-1.5 rounded-lg focus:outline-none focus:bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleIncrementWlkIn(item.itemId, 1)}
+                              className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Bar count */}
+                        <div className="flex flex-col items-center bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
+                          <span className="text-[9px] uppercase font-bold text-slate-500 font-mono mb-1">Bar / Front</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDecrementBar(item.itemId, 1)}
+                              className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.barCount === 0 ? '' : item.barCount}
+                              onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              className="w-14 text-center font-mono font-black text-base bg-emerald-100 text-emerald-950 border border-emerald-400 py-1.5 rounded-lg focus:outline-none focus:bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleIncrementBar(item.itemId, 1)}
+                              className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Standard single count input with big + and - touch buttons
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDecrementCount(item.itemId, 1)}
+                          className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 font-black text-base flex items-center justify-center transition border border-slate-300 touch-manipulation cursor-pointer"
+                          title="Subtract 1"
+                        >
+                          <Minus className="w-4 h-4 stroke-3" />
+                        </button>
+
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.currentCount === 0 ? '' : item.currentCount}
+                          onChange={(e) => handleCountChange(item.itemId, e.target.value)}
+                          placeholder="0"
+                          className="w-20 sm:w-24 h-11 text-center font-mono font-black text-xl bg-emerald-100 text-emerald-950 border-2 border-emerald-400 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleIncrementCount(item.itemId, 1)}
+                          className="w-11 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-base flex items-center justify-center transition shadow-sm touch-manipulation cursor-pointer"
+                          title="Add 1"
+                        >
+                          <Plus className="w-4 h-4 stroke-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* 📋 Sticky Bottom Action Bar to Finish & Review */}
+          <div className="sticky bottom-4 z-30 bg-slate-900/95 backdrop-blur-md text-white p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-xs sm:text-sm font-bold font-mono">
+                Ready to review? <strong className="text-amber-400">{stats.totalCounted} of {stats.totalItems}</strong> items entered
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCountingPhase('review');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+            >
+              <span>Finish & Review Inventory</span>
+              <ArrowRight className="w-4 h-4 stroke-3" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* 📋 REVIEW PHASE (EVERYTHING SHOWN FOR CHECKING) */
+        <div className="space-y-5 animate-fadeIn">
+          
+          {/* Review Banner with Back to Counting Button */}
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-slate-950 p-4 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
+                📋
+              </span>
+              <div>
+                <h3 className="font-black text-base sm:text-lg text-slate-950 leading-tight">
+                  Inventory Review & Verification Mode
+                </h3>
+                <p className="text-xs text-slate-900 font-medium">
+                  Reviewing all specifications, par levels, suggested orders, and store dating rules before final submission.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCountingPhase('counting');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="bg-slate-950 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Counting</span>
+            </button>
+          </div>
+
+          {/* 1. REAL-WORLD STORE SHEET HEADER BLOCK (Identical to Anita's physical store clipboard sheets) */}
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
         
         {/* Top brand & title row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
@@ -1770,6 +2442,8 @@ export default function InventoryFormCounting({
           </button>
         </div>
       </div>
+    </div>
+  )}
 
     </div>
   );
