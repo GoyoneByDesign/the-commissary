@@ -337,7 +337,7 @@ async function initServer() {
   if (process.env.NODE_ENV !== "production") {
     console.log("[SERVER] Dev Environment: Mounting Vite Hot-Reload Middleware");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
