@@ -42,6 +42,17 @@ export default function InventoryFormCounting({
   const [aiParsingInProgress, setAiParsingInProgress] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  // 🔴 Active Voice item focus (the line item whose quantity box has the red blinking outline waiting for speech)
+  const [activeVoiceItemId, setActiveVoiceItemId] = useState<string | null>(null);
+  const [liveSpokenCaption, setLiveSpokenCaption] = useState<string>('');
+  const [voiceActionNotice, setVoiceActionNotice] = useState<string>('');
+  const itemRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemsMapRef = useRef<{ [itemId: string]: SubmissionItem }>({});
+  const displayedItemsRef = useRef<SubmissionItem[]>([]);
+  const activeVoiceItemIdRef = useRef<string | null>(null);
+  activeVoiceItemIdRef.current = activeVoiceItemId;
+
   // View mode in Review: 'sheet' (Adaptive Mobile List on phone / Grid on tablet), 'cards' (Touch Cards), or 'table' (Raw Grid Table)
   const [viewMode, setViewMode] = useState<'sheet' | 'cards' | 'table'>('sheet');
 
@@ -108,8 +119,8 @@ export default function InventoryFormCounting({
     return id.includes('pans') || t.includes('pan') || t.includes('lids');
   }, [form]);
 
-  // Local state holding the physical count items
   const [itemsMap, setItemsMap] = useState<{ [itemId: string]: SubmissionItem }>({});
+  itemsMapRef.current = itemsMap;
 
   // Dynamic column detection based on item properties
   const hasSizeColumn = useMemo(() => {
@@ -322,87 +333,202 @@ export default function InventoryFormCounting({
     }
   };
 
-  // 🎙️ Process voice input through smart local NLP + Gemini AI fallback
-  const handleProcessSpokenText = async (rawText: string) => {
-    if (!rawText.trim()) return;
-    setVoiceTranscript(rawText);
-    const lower = rawText.toLowerCase().trim();
-    const itemsList = Object.values(itemsMap) as SubmissionItem[];
+  // Extract numeric quantity from spoken sentence (digits, word numbers, fractions)
+  const extractQuantityFromSpeech = (spokenText: string): number | null => {
+    const lower = spokenText.toLowerCase();
 
-    // 1. Dual Beer matching (walk-in and bar)
-    const walkInBarRegex = /(.*?)(?:walk\s*in|walkin)\s*(\d+(?:\.\d+)?).*?(?:bar|front)\s*(\d+(?:\.\d+)?)/i;
-    const wlkMatch = lower.match(walkInBarRegex);
-    if (wlkMatch) {
-      const phraseItem = wlkMatch[1].trim();
-      const wlkVal = parseFloat(wlkMatch[2]);
-      const barVal = parseFloat(wlkMatch[3]);
-      const target = itemsList.find(i => 
-        i.name.toLowerCase().includes(phraseItem) || phraseItem.includes(i.name.toLowerCase())
-      );
-      if (target) {
-        applyVoiceCount(target.itemId, wlkVal + barVal, wlkVal, barVal);
-        return;
-      }
+    // 1. Direct digits (e.g. "5", "5.5", "12 cases")
+    const digitMatch = lower.match(/\b\d+(?:\.\d+)?\b/);
+    if (digitMatch) {
+      return parseFloat(digitMatch[0]);
     }
 
-    // 2. Standard Pattern: "Item Name [number]" or "[number] Item Name"
-    let matchedItem: SubmissionItem | undefined;
-    let foundCount: number | null = null;
+    // 2. Fractions and half amounts
+    if (/\bhalf\b/i.test(lower)) {
+      if (/\bthree\s+and\s+a\s+half\b/i.test(lower) || /\b3\s+and\s+a\s+half\b/i.test(lower)) return 3.5;
+      if (/\btwo\s+and\s+a\s+half\b/i.test(lower) || /\b2\s+and\s+a\s+half\b/i.test(lower)) return 2.5;
+      if (/\bone\s+and\s+a\s+half\b/i.test(lower) || /\b1\s+and\s+a\s+half\b/i.test(lower)) return 1.5;
+      return 0.5;
+    }
 
-    for (const item of itemsList) {
-      const cleanItemName = item.name.toLowerCase().replace(/[^\w\s]/g, '');
-      const words = cleanItemName.split(' ').filter(w => w.length > 2);
-      if (lower.includes(cleanItemName) || (words.length > 0 && words.every(w => lower.includes(w)))) {
-        const numMatches = lower.match(/\b\d+(?:\.\d+)?\b/g);
-        if (numMatches && numMatches.length > 0) {
-          foundCount = parseFloat(numMatches[numMatches.length - 1]);
-          matchedItem = item;
-          break;
+    // 3. Word numbers
+    const numberWords: Record<string, number> = {
+      zero: 0,
+      none: 0,
+      one: 1,
+      two: 2,
+      to: 2,
+      too: 2,
+      three: 3,
+      four: 4,
+      for: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      ate: 8,
+      nine: 9,
+      ten: 10,
+      eleven: 11,
+      twelve: 12,
+      thirteen: 13,
+      fourteen: 14,
+      fifteen: 15,
+      sixteen: 16,
+      seventeen: 17,
+      eighteen: 18,
+      nineteen: 19,
+      twenty: 20,
+      thirty: 30,
+      forty: 40,
+      fifty: 50,
+      sixty: 60,
+      seventy: 70,
+      eighty: 80,
+      ninety: 90,
+      hundred: 100,
+    };
+
+    const words = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+    for (let i = 0; i < words.length; i++) {
+      const w1 = words[i];
+      const w2 = words[i + 1];
+      
+      // Check compounds like "twenty five"
+      if (['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'].includes(w1)) {
+        const base = numberWords[w1];
+        if (w2 && numberWords[w2] !== undefined && numberWords[w2] < 10) {
+          return base + numberWords[w2];
         }
+        return base;
       }
-    }
 
-    if (matchedItem && foundCount !== null) {
-      applyVoiceCount(matchedItem.itemId, foundCount);
-      return;
-    }
-
-    // 3. Fallback to Gemini AI Voice Understanding endpoint
-    setAiParsingInProgress(true);
-    try {
-      const res = await fetch('/api/ai/voice-parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          spokenText: rawText,
-          availableItemNames: itemsList.map(i => i.name)
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.matches && data.matches.length > 0) {
-          data.matches.forEach((m: any) => {
-            const target = itemsList.find(i => 
-              i.name.toLowerCase() === m.matchedItemName.toLowerCase() ||
-              i.name.toLowerCase().includes(m.matchedItemName.toLowerCase())
-            );
-            if (target && m.count !== null && m.count !== undefined) {
-              applyVoiceCount(target.itemId, m.count, m.wlkInCount, m.barCount);
-            }
-          });
-          setAiParsingInProgress(false);
-          return;
+      if (numberWords[w1] !== undefined) {
+        if ((w1 === 'for' || w1 === 'to') && words.length > 2 && i < words.length - 1) {
+          continue;
         }
+        return numberWords[w1];
       }
-    } catch (e) {
-      console.warn("Gemini voice parse fallback error", e);
     }
-    setAiParsingInProgress(false);
-    setVoiceFeedbackMsg(`Could not recognize count for: "${rawText}". Try: "Item Name [number]"`);
+
+    return null;
   };
 
-  const applyVoiceCount = (itemId: string, count: number, wlkIn?: number | null, bar?: number | null) => {
-    const item = itemsMap[itemId];
+  // Find which item in the catalog the user named, stripping out units, numbers, and filler words
+  const findBestMatchingItem = (
+    spokenText: string,
+    displayed: SubmissionItem[],
+    all: SubmissionItem[]
+  ): SubmissionItem | null => {
+    const cleanSpoken = spokenText
+      .toLowerCase()
+      .replace(/[0-9]/g, ' ')
+      .replace(/\b(cases|case|boxes|box|bags|bag|cans|can|packs|pack|sleeves|sleeve|bottles|bottle|pounds|pound|lbs|lb|units|unit|count|is|set|to|of|and|the|a|for|in|on|at)\b/gi, ' ')
+      .replace(/[^\w\s]/g, ' ')
+      .trim();
+
+    if (!cleanSpoken || cleanSpoken.length < 2) return null;
+
+    const spokenWords = cleanSpoken.split(/\s+/).filter(w => w.length >= 2);
+    if (spokenWords.length === 0) return null;
+
+    let bestMatch: SubmissionItem | null = null;
+    let highestScore = 0;
+
+    const candidatePool = [
+      ...displayed.map(item => ({ item, isDisplayed: true })),
+      ...all.filter(a => !displayed.some(d => d.itemId === a.itemId)).map(item => ({ item, isDisplayed: false }))
+    ];
+
+    for (const { item, isDisplayed } of candidatePool) {
+      const cleanItem = item.name.toLowerCase().replace(/[^\w\s]/g, ' ');
+      const itemWords = cleanItem.split(/\s+/).filter(w => w.length >= 2);
+
+      let score = 0;
+
+      // Exact string containment
+      if (cleanItem.includes(cleanSpoken)) {
+        score += 100;
+      } else if (cleanSpoken.includes(cleanItem)) {
+        score += 80;
+      }
+
+      // Word-by-word matches
+      let matchedWordCount = 0;
+      for (const sWord of spokenWords) {
+        if (itemWords.some(iWord => iWord === sWord || iWord.startsWith(sWord) || sWord.startsWith(iWord))) {
+          matchedWordCount++;
+        }
+      }
+
+      if (matchedWordCount > 0) {
+        score += (matchedWordCount / spokenWords.length) * 60 + matchedWordCount * 15;
+      }
+
+      if (isDisplayed) {
+        score += 15;
+      }
+
+      if (score > highestScore && score >= 30) {
+        highestScore = score;
+        bestMatch = item;
+      }
+    }
+
+    return bestMatch;
+  };
+
+  // Jump active red cursor focus to specific item
+  const jumpToItem = (itemId: string, customNotice?: string) => {
+    const item = itemsMapRef.current[itemId] || (Object.values(itemsMapRef.current) as SubmissionItem[]).find(i => i.itemId === itemId);
+    if (!item) return;
+
+    // If item is not in current active section, switch to ALL so user sees it
+    if (activeSection !== 'ALL') {
+      const inCurrent = displayedItemsRef.current.some(i => i.itemId === itemId);
+      if (!inCurrent) {
+        setActiveSection('ALL');
+      }
+    }
+
+    setActiveVoiceItemId(itemId);
+    setLastCountedItemId(null);
+    const notice = customNotice || `🎯 Jumped to: "${item.name}" — Box ready for count`;
+    setVoiceActionNotice(notice);
+    setVoiceFeedbackMsg(notice);
+    speakFeedback(`${item.name}. What is the count?`);
+
+    setTimeout(() => {
+      itemRowRefs.current[itemId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+  };
+
+  // Advance red outline focus to next line item in sheet order
+  const advanceToNextItem = (currentItemId: string) => {
+    const currentList = displayedItemsRef.current;
+    const currentIndex = currentList.findIndex(i => i.itemId === currentItemId);
+    if (currentIndex !== -1 && currentIndex + 1 < currentList.length) {
+      const nextItem = currentList[currentIndex + 1];
+      setActiveVoiceItemId(nextItem.itemId);
+      const notice = `➡️ Next item: "${nextItem.name}" — Waiting for count`;
+      setVoiceActionNotice(notice);
+      setTimeout(() => {
+        itemRowRefs.current[nextItem.itemId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    } else if (currentIndex === currentList.length - 1) {
+      speakFeedback("All items counted! Ready for review.");
+      setVoiceActionNotice("🎉 Reached the last item in this section. Ready to review!");
+    }
+  };
+
+  const applyVoiceCount = (
+    itemId: string, 
+    count: number, 
+    wlkIn?: number | null, 
+    bar?: number | null, 
+    spokenDetail?: string
+  ) => {
+    const item = itemsMapRef.current[itemId];
     if (!item) return;
 
     if (wlkIn !== null && wlkIn !== undefined && bar !== null && bar !== undefined) {
@@ -441,7 +567,163 @@ export default function InventoryFormCounting({
       setLastCountedItemId(itemId);
       const msg = `✓ Set ${item.name} to ${count}`;
       setVoiceFeedbackMsg(msg);
-      speakFeedback(`${item.name}: ${count}`);
+      speakFeedback(`${item.name}: ${spokenDetail || count}`);
+    }
+  };
+
+  // 🎙️ Process voice input through smart local NLP + Gemini AI fallback
+  const handleProcessSpokenText = async (rawText: string) => {
+    if (!rawText.trim()) return;
+    const cleanSpoken = rawText.trim();
+    setLiveSpokenCaption(cleanSpoken);
+    setVoiceTranscript(cleanSpoken);
+    const lower = cleanSpoken.toLowerCase();
+    const allItems = Object.values(itemsMapRef.current) as SubmissionItem[];
+    const displayed = displayedItemsRef.current.length > 0 ? displayedItemsRef.current : allItems;
+
+    // Current active item with the red outline
+    const currentActiveItem = (activeVoiceItemIdRef.current && itemsMapRef.current[activeVoiceItemIdRef.current]) 
+      || displayed[0] 
+      || allItems[0];
+
+    // 1. Dual Beer matching (walk-in and bar)
+    const walkInBarRegex = /(.*?)(?:walk\s*in|walkin)\s*(\d+(?:\.\d+)?).*?(?:bar|front)\s*(\d+(?:\.\d+)?)/i;
+    const wlkMatch = lower.match(walkInBarRegex);
+    if (wlkMatch) {
+      const phraseItem = wlkMatch[1].trim();
+      const wlkVal = parseFloat(wlkMatch[2]);
+      const barVal = parseFloat(wlkMatch[3]);
+      let target = displayed.find(i => 
+        i.name.toLowerCase().includes(phraseItem) || phraseItem.includes(i.name.toLowerCase())
+      );
+      if (!target) target = allItems.find(i => 
+        i.name.toLowerCase().includes(phraseItem) || phraseItem.includes(i.name.toLowerCase())
+      );
+      if (!target && currentActiveItem) target = currentActiveItem;
+
+      if (target) {
+        applyVoiceCount(target.itemId, wlkVal + barVal, wlkVal, barVal, `Walk-in ${wlkVal}, Bar ${barVal}`);
+        advanceToNextItem(target.itemId);
+        return;
+      }
+    }
+
+    // 2. Extract numeric quantity from speech
+    const extractedCount = extractQuantityFromSpeech(cleanSpoken);
+
+    // 3. Search for item name mentioned in spoken speech
+    const matchedItem = findBestMatchingItem(cleanSpoken, displayed, allItems);
+
+    // CASE A: User said a specific item name AND a quantity (e.g. "5 cases of Chicken Breast", "Sausage 4")
+    if (matchedItem && extractedCount !== null) {
+      const unitNotice = cleanSpoken.toLowerCase().includes('case') ? 'cases' : matchedItem.unit || 'units';
+      const actionMsg = `✓ Set "${matchedItem.name}" to ${extractedCount} ${unitNotice}`;
+      setVoiceActionNotice(actionMsg);
+      applyVoiceCount(matchedItem.itemId, extractedCount, null, null, `${extractedCount} ${unitNotice}`);
+      advanceToNextItem(matchedItem.itemId);
+      return;
+    }
+
+    // CASE B: User said a DIFFERENT item name with NO quantity (Skipping/Jumping!)
+    // e.g. Next item is Chorizo, but user says "Sausage"
+    if (matchedItem && extractedCount === null) {
+      jumpToItem(matchedItem.itemId);
+      return;
+    }
+
+    // CASE C: User said ONLY a quantity with NO item name (Filling the active item with red outline!)
+    // e.g. User is on Chicken Breast (red box) and says "5", "five cases", "twelve"
+    if (!matchedItem && extractedCount !== null && currentActiveItem) {
+      const unitNotice = cleanSpoken.toLowerCase().includes('case') ? 'cases' : currentActiveItem.unit || 'units';
+      const actionMsg = `✓ Set "${currentActiveItem.name}" to ${extractedCount} ${unitNotice}`;
+      setVoiceActionNotice(actionMsg);
+      applyVoiceCount(currentActiveItem.itemId, extractedCount, null, null, `${extractedCount} ${unitNotice}`);
+      advanceToNextItem(currentActiveItem.itemId);
+      return;
+    }
+
+    // CASE D: Fallback to Gemini AI Voice Understanding endpoint for complex sentences
+    setAiParsingInProgress(true);
+    try {
+      const res = await fetch('/api/ai/voice-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          spokenText: rawText,
+          availableItemNames: displayed.map(i => i.name)
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.matches && data.matches.length > 0) {
+          const firstMatch = data.matches[0];
+          const target = allItems.find(i => 
+            i.name.toLowerCase() === firstMatch.matchedItemName?.toLowerCase() ||
+            i.name.toLowerCase().includes(firstMatch.matchedItemName?.toLowerCase())
+          );
+          if (target && firstMatch.count !== null && firstMatch.count !== undefined) {
+            applyVoiceCount(target.itemId, firstMatch.count, firstMatch.wlkInCount, firstMatch.barCount);
+            advanceToNextItem(target.itemId);
+            setAiParsingInProgress(false);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Gemini voice parse fallback error", e);
+    }
+    setAiParsingInProgress(false);
+    setVoiceActionNotice(`Could not recognize count. Try: "5 cases of ${currentActiveItem?.name || 'Item'}" or say a number.`);
+  };
+
+  // Start Voice feature to count (announces "I'M READY!", focuses first item with red outline, starts speech recognition)
+  const startVoiceCounting = () => {
+    setCountInputMethod('voice');
+    setContinuousListening(true);
+    
+    const candidates = displayedItemsRef.current.length > 0 ? displayedItemsRef.current : (Object.values(itemsMapRef.current) as SubmissionItem[]);
+    const targetId = (activeVoiceItemIdRef.current && candidates.some(i => i.itemId === activeVoiceItemIdRef.current))
+      ? activeVoiceItemIdRef.current
+      : candidates[0]?.itemId || null;
+    
+    if (targetId) {
+      setActiveVoiceItemId(targetId);
+      setTimeout(() => {
+        itemRowRefs.current[targetId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+
+    setLiveSpokenCaption("");
+    const readyMsg = "I'M READY! Waiting for you to speak...";
+    setVoiceActionNotice(readyMsg);
+    setVoiceFeedbackMsg(readyMsg);
+    speakFeedback("I'M READY!");
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition && recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        console.warn("Speech start:", e);
+      }
+    }
+  };
+
+  const toggleVoiceListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Browser speech recognition is not supported in this frame. You can use Manual Count or the quick test simulation chips!");
+      return;
+    }
+
+    if (isVoiceListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+      setIsVoiceListening(false);
+      setVoiceFeedbackMsg("Voice recognition paused. Tap mic to resume.");
+    } else {
+      startVoiceCounting();
     }
   };
 
@@ -453,18 +735,34 @@ export default function InventoryFormCounting({
 
     const rec = new SpeechRecognition();
     rec.continuous = continuousListening;
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.lang = 'en-US';
 
     rec.onstart = () => {
       setIsVoiceListening(true);
-      setVoiceFeedbackMsg("Listening hands-free... Say item name and count (e.g. 'Tortilla 15')");
+      setVoiceFeedbackMsg("Listening hands-free... Say count or item name.");
     };
 
     rec.onresult = (event: any) => {
-      const lastIndex = event.results.length - 1;
-      const transcript = event.results[lastIndex][0].transcript;
-      handleProcessSpokenText(transcript);
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const trans = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += trans;
+        } else {
+          interim += trans;
+        }
+      }
+
+      const heard = (final || interim).trim();
+      if (heard) {
+        setLiveSpokenCaption(heard);
+      }
+
+      if (final.trim()) {
+        handleProcessSpokenText(final.trim());
+      }
     };
 
     rec.onerror = (e: any) => {
@@ -491,31 +789,7 @@ export default function InventoryFormCounting({
         rec.abort();
       } catch {}
     };
-  }, [continuousListening, countInputMethod, itemsMap]);
-
-  const toggleVoiceListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Browser speech recognition is not supported in this frame. You can use Manual Count or the quick test simulation chips!");
-      return;
-    }
-
-    if (isVoiceListening) {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
-      }
-      setIsVoiceListening(false);
-      setVoiceFeedbackMsg("Voice recognition paused. Tap mic to resume.");
-    } else {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-        } catch (e) {
-          console.warn("Speech start warning:", e);
-        }
-      }
-    }
-  };
+  }, [continuousListening, countInputMethod]);
 
   // Final Order override
   const handleFinalOrderChange = (itemId: string, orderVal: string) => {
@@ -647,6 +921,7 @@ export default function InventoryFormCounting({
     }
     return list;
   }, [form, activeSection, itemsMap, searchQuery]);
+  displayedItemsRef.current = displayedItems;
 
   // Summary statistics across active items
   const stats = useMemo(() => {
@@ -1023,10 +1298,10 @@ export default function InventoryFormCounting({
 
                 <button
                   type="button"
-                  onClick={() => setCountInputMethod('voice')}
+                  onClick={startVoiceCounting}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
                     countInputMethod === 'voice'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -1044,32 +1319,36 @@ export default function InventoryFormCounting({
 
             {/* 🎙️ Voice Assistant Control Deck (Active in Voice Count mode) */}
             {countInputMethod === 'voice' && (
-              <div className="bg-slate-950/90 border border-amber-500/40 rounded-xl p-3.5 sm:p-4 space-y-3 animate-fadeIn">
+              <div className="bg-slate-950/95 border-2 border-amber-500/50 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl animate-fadeIn">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={toggleVoiceListening}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg cursor-pointer ${
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition shadow-lg cursor-pointer ${
                         isVoiceListening
-                          ? 'bg-red-500 text-white animate-pulse shadow-red-500/50'
-                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-red-500/50 ring-4 ring-red-400/40'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/30'
                       }`}
                       title={isVoiceListening ? 'Tap to pause microphone' : 'Tap to start voice recognition'}
                     >
-                      {isVoiceListening ? <Mic className="w-6 h-6 stroke-3" /> : <Mic className="w-6 h-6" />}
+                      {isVoiceListening ? <Mic className="w-7 h-7 stroke-3" /> : <Mic className="w-7 h-7" />}
                     </button>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-black text-sm text-white">
+                        <h4 className="font-black text-base text-white">
                           {isVoiceListening ? '🎙️ Listening Hands-Free...' : '🎙️ Tap Mic to Start Voice Counting'}
                         </h4>
                         {isVoiceListening && (
                           <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping inline-block"></span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                        Say item name and count (e.g., <i>"Tortilla 15"</i> or <i>"Carnitas 6"</i>)
+                      <p className="text-xs text-slate-300 font-mono mt-0.5">
+                        {isVoiceListening ? (
+                          <>Red outline shows active box. Say <i>"5 cases"</i>, <i>"5 cases of {itemsMap[activeVoiceItemId || '']?.name || 'Chicken'}"</i>, or name another item to skip!</>
+                        ) : (
+                          <>Tap the microphone or say <i>"I'm ready"</i> to activate speech recognition</>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -1079,44 +1358,104 @@ export default function InventoryFormCounting({
                     <button
                       type="button"
                       onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition border ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 transition border cursor-pointer ${
                         speechSynthesisEnabled
-                          ? 'bg-emerald-950/80 border-emerald-600 text-emerald-400'
+                          ? 'bg-emerald-950/80 border-emerald-600 text-emerald-400 shadow-xs'
                           : 'bg-slate-900 border-slate-700 text-slate-500'
                       }`}
                       title="Speak confirmation out loud after each item is counted"
                     >
-                      {speechSynthesisEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-                      <span>{speechSynthesisEnabled ? 'Voice Confirm: ON' : 'Voice Confirm: OFF'}</span>
+                      {speechSynthesisEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
+                      <span>{speechSynthesisEnabled ? 'Audio Feedback: ON' : 'Audio Feedback: OFF'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Transcript / Feedback banner */}
-                <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-300 truncate mr-2">
-                    {voiceFeedbackMsg || (voiceTranscript ? `Heard: "${voiceTranscript}"` : "Waiting for speech... Speak clearly near phone or headset.")}
-                  </span>
-                  {aiParsingInProgress && (
-                    <span className="text-amber-400 text-[10px] font-bold flex items-center gap-1 shrink-0">
-                      <RefreshCw className="w-3 h-3 animate-spin" /> AI Analyzing...
+                {/* 🗣️ LIVE SPOKEN CAPTION DISPLAY */}
+                <div className="bg-slate-900 border-2 border-amber-400/50 rounded-xl p-3.5 sm:p-4 shadow-md space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold">
+                    <span className="flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                      Live Voice Caption
                     </span>
-                  )}
+                    <div className="flex items-center gap-2">
+                      {activeVoiceItemId && itemsMap[activeVoiceItemId] && (
+                        <span className="bg-rose-950/90 border border-rose-500/60 text-rose-300 px-2.5 py-0.5 rounded text-[10.5px] font-bold animate-pulse flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+                          Waiting: {itemsMap[activeVoiceItemId].name}
+                        </span>
+                      )}
+                      {isVoiceListening && (
+                        <span className="text-emerald-400 font-bold bg-emerald-950/90 border border-emerald-500/50 px-2 py-0.5 rounded text-[10px] flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                          STANDBY / LISTENING
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quoted caption box */}
+                  <div className="bg-slate-950 p-3 sm:p-3.5 rounded-lg border border-slate-800">
+                    {liveSpokenCaption ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-start gap-2">
+                          <span className="text-amber-400 text-sm font-mono shrink-0">Heard:</span>
+                          <p className="text-white text-base sm:text-lg font-black tracking-wide font-sans">
+                            “{liveSpokenCaption}”
+                          </p>
+                        </div>
+                        <p className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                          <span>{voiceActionNotice || voiceFeedbackMsg || 'Processing speech command...'}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1 py-1">
+                        <p className="text-amber-400 text-sm sm:text-base font-black tracking-wider uppercase flex items-center gap-2">
+                          <span className="text-lg">📢</span> "I'M READY!"
+                        </p>
+                        <p className="text-xs font-mono text-slate-300">
+                          The red outline below marks the active item waiting for a number. Read the item and say the value (e.g. <i>"5 cases of {itemsMap[activeVoiceItemId || '']?.name || 'Chicken Breast'}"</i>, or just <i>"5"</i>). If you skip and say another item like <i>"Sausage"</i>, the red outline moves to that line automatically!
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Quick Voice Simulation Chips */}
-                <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] font-mono">
-                  <span className="text-slate-500 uppercase text-[9px] font-bold">Quick Speech Tests:</span>
-                  {displayedItems.slice(0, 4).map((it, idx) => (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono pt-1 border-t border-slate-800/80">
+                  <span className="text-slate-400 uppercase text-[9px] font-bold shrink-0">Try Voice Commands:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleProcessSpokenText(`5 cases of ${displayedItems[0]?.name || 'Chicken Breast'}`)}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 rounded-lg transition cursor-pointer"
+                  >
+                    "5 cases of {displayedItems[0]?.name || 'Chicken Breast'}"
+                  </button>
+                  {displayedItems[1] && (
                     <button
-                      key={it.itemId}
                       type="button"
-                      onClick={() => handleProcessSpokenText(`${it.name} ${idx === 0 ? 12 : idx === 1 ? 5 : 8}`)}
-                      className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 rounded-md transition cursor-pointer"
+                      onClick={() => handleProcessSpokenText(displayedItems[1].name)}
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 rounded-lg transition cursor-pointer"
                     >
-                      "{it.name} {idx === 0 ? 12 : idx === 1 ? 5 : 8}"
+                      Skip to: "{displayedItems[1].name}"
                     </button>
-                  ))}
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleProcessSpokenText("4")}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg transition cursor-pointer"
+                  >
+                    Say count only: "4"
+                  </button>
+                  {isBarSheet && (
+                    <button
+                      type="button"
+                      onClick={() => handleProcessSpokenText("Corona 8 walk in and 3 bar")}
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 rounded-lg transition cursor-pointer"
+                    >
+                      "Corona 8 walk in and 3 bar"
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1179,6 +1518,38 @@ export default function InventoryFormCounting({
             </div>
           </div>
 
+          {/* 🗣️ Floating Sticky Voice Status Bar when in Voice Count mode */}
+          {countInputMethod === 'voice' && (
+            <div className="sticky top-2 z-20 bg-slate-950/95 backdrop-blur-md border border-amber-500/50 p-2.5 sm:p-3 rounded-2xl shadow-xl flex items-center justify-between gap-3 text-xs font-mono animate-fadeIn">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0"></span>
+                <span className="text-amber-400 font-bold uppercase text-[10px] shrink-0">🗣️ Live Voice:</span>
+                <span className="text-white truncate font-bold text-xs sm:text-sm">
+                  {liveSpokenCaption ? `“${liveSpokenCaption}”` : '"I\'M READY! Waiting for you to speak..."'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {activeVoiceItemId && itemsMap[activeVoiceItemId] && (
+                  <span className="bg-rose-950 border border-rose-500 text-rose-300 px-2.5 py-1 rounded-lg text-[10.5px] font-black animate-pulse flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+                    Waiting: {itemsMap[activeVoiceItemId].name}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleVoiceListening}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase flex items-center gap-1 transition cursor-pointer ${
+                    isVoiceListening ? 'bg-red-500 text-white' : 'bg-amber-500 text-slate-950'
+                  }`}
+                >
+                  <Mic className="w-3 h-3" />
+                  <span>{isVoiceListening ? 'Listening' : 'Start Mic'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 📋 THE FAST COUNTING LIST (ONLY ITEM NAME & COUNT SHOWN!) */}
           <div className="space-y-2.5">
             {displayedItems.length === 0 ? (
@@ -1189,12 +1560,21 @@ export default function InventoryFormCounting({
               displayedItems.map((item, index) => {
                 const isBeer = isBarSheet && (item.category === 'Beer Bottles' || item.category === 'Beer Draft' || item.isBeer);
                 const isLastUpdated = lastCountedItemId === item.itemId;
+                const isVoiceActive = countInputMethod === 'voice' && activeVoiceItemId === item.itemId;
 
                 return (
                   <div
                     key={item.itemId}
+                    ref={(el) => { itemRowRefs.current[item.itemId] = el; }}
+                    onClick={() => {
+                      if (countInputMethod === 'voice') {
+                        jumpToItem(item.itemId);
+                      }
+                    }}
                     className={`bg-white border rounded-2xl p-3.5 sm:p-4 shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isLastUpdated
+                      isVoiceActive
+                        ? 'ring-4 ring-rose-500/80 border-rose-500 bg-rose-50/30 shadow-xl scale-[1.01]'
+                        : isLastUpdated
                         ? 'ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-400'
                         : item.currentCount > 0
                         ? 'border-emerald-300 bg-emerald-50/15'
@@ -1203,14 +1583,24 @@ export default function InventoryFormCounting({
                   >
                     {/* ONLY ITEM NAME! */}
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className="font-mono text-xs font-black bg-slate-100 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+                      <span className={`font-mono text-xs font-black w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition ${
+                        isVoiceActive ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+                      }`}>
                         #{index + 1}
                       </span>
                       <div className="min-w-0">
-                        <h3 className="font-black text-slate-900 text-base sm:text-lg leading-snug truncate">
-                          {item.requiresDating && <span className="text-rose-600 font-black mr-1">*</span>}
-                          {item.name}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-black text-slate-900 text-base sm:text-lg leading-snug truncate">
+                            {item.requiresDating && <span className="text-rose-600 font-black mr-1">*</span>}
+                            {item.name}
+                          </h3>
+                          {isVoiceActive && (
+                            <span className="hidden sm:inline-flex items-center gap-1 bg-rose-100 border border-rose-300 text-rose-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md animate-pulse shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping"></span>
+                              Active Voice Line
+                            </span>
+                          )}
+                        </div>
                         {item.currentCount > 0 ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 font-bold mt-0.5">
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1229,27 +1619,45 @@ export default function InventoryFormCounting({
                       // Dual Walk-in & Bar count for Beer items
                       <div className="flex items-center gap-3 shrink-0">
                         {/* Walk-in count */}
-                        <div className="flex flex-col items-center bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 font-mono mb-1">Walk-In</span>
+                        <div className={`flex flex-col items-center p-1.5 rounded-xl transition ${
+                          isVoiceActive
+                            ? 'bg-rose-50 border-2 border-rose-500 ring-2 ring-rose-400/60 animate-pulse'
+                            : 'bg-slate-50 border border-slate-200'
+                        }`}>
+                          <span className={`text-[9px] uppercase font-bold font-mono mb-1 ${
+                            isVoiceActive ? 'text-rose-700 font-black' : 'text-slate-500'
+                          }`}>
+                            {isVoiceActive ? '🔴 Walk-In' : 'Walk-In'}
+                          </span>
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleDecrementWlkIn(item.itemId, 1)}
+                              onClick={(e) => { e.stopPropagation(); handleDecrementWlkIn(item.itemId, 1); }}
                               className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <input
+                              ref={(el) => { inputRefs.current[item.itemId] = el; }}
                               type="number"
                               min="0"
                               value={item.wlkInCount === 0 ? '' : item.wlkInCount}
                               onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
+                              onFocus={() => {
+                                if (countInputMethod === 'voice') {
+                                  setActiveVoiceItemId(item.itemId);
+                                }
+                              }}
                               placeholder="0"
-                              className="w-14 text-center font-mono font-black text-base bg-emerald-100 text-emerald-950 border border-emerald-400 py-1.5 rounded-lg focus:outline-none focus:bg-white"
+                              className={`w-14 text-center font-mono font-black text-base py-1.5 rounded-lg transition ${
+                                isVoiceActive
+                                  ? 'bg-rose-50 text-rose-950 border-2 border-rose-600 ring-2 ring-rose-400 focus:outline-none focus:bg-white'
+                                  : 'bg-emerald-100 text-emerald-950 border border-emerald-400 focus:outline-none focus:bg-white'
+                              }`}
                             />
                             <button
                               type="button"
-                              onClick={() => handleIncrementWlkIn(item.itemId, 1)}
+                              onClick={(e) => { e.stopPropagation(); handleIncrementWlkIn(item.itemId, 1); }}
                               className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -1263,7 +1671,7 @@ export default function InventoryFormCounting({
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleDecrementBar(item.itemId, 1)}
+                              onClick={(e) => { e.stopPropagation(); handleDecrementBar(item.itemId, 1); }}
                               className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
                             >
                               <Minus className="w-3.5 h-3.5" />
@@ -1278,7 +1686,7 @@ export default function InventoryFormCounting({
                             />
                             <button
                               type="button"
-                              onClick={() => handleIncrementBar(item.itemId, 1)}
+                              onClick={(e) => { e.stopPropagation(); handleIncrementBar(item.itemId, 1); }}
                               className="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer touch-manipulation"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -1287,11 +1695,21 @@ export default function InventoryFormCounting({
                         </div>
                       </div>
                     ) : (
-                      // Standard single count input with big + and - touch buttons
-                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      // Standard single count input with big + and - touch buttons + RED WAITING OUTLINE
+                      <div className="relative flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        {/* Red pulsating badge waiting for number */}
+                        {isVoiceActive && (
+                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap z-20">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse shadow-md flex items-center gap-1.5 border border-white">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                              WAITING FOR NUMBER
+                            </span>
+                          </div>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => handleDecrementCount(item.itemId, 1)}
+                          onClick={(e) => { e.stopPropagation(); handleDecrementCount(item.itemId, 1); }}
                           className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 font-black text-base flex items-center justify-center transition border border-slate-300 touch-manipulation cursor-pointer"
                           title="Subtract 1"
                         >
@@ -1299,18 +1717,28 @@ export default function InventoryFormCounting({
                         </button>
 
                         <input
+                          ref={(el) => { inputRefs.current[item.itemId] = el; }}
                           type="number"
                           min="0"
                           step="any"
                           value={item.currentCount === 0 ? '' : item.currentCount}
                           onChange={(e) => handleCountChange(item.itemId, e.target.value)}
+                          onFocus={() => {
+                            if (countInputMethod === 'voice') {
+                              setActiveVoiceItemId(item.itemId);
+                            }
+                          }}
                           placeholder="0"
-                          className="w-20 sm:w-24 h-11 text-center font-mono font-black text-xl bg-emerald-100 text-emerald-950 border-2 border-emerald-400 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition"
+                          className={`w-20 sm:w-24 h-11 text-center font-mono font-black text-xl rounded-xl transition cursor-text ${
+                            isVoiceActive
+                              ? 'bg-rose-50 text-rose-950 border-4 border-rose-600 ring-4 ring-rose-400/60 animate-pulse shadow-inner focus:outline-none'
+                              : 'bg-emerald-100 text-emerald-950 border-2 border-emerald-400 focus:bg-white focus:outline-none focus:border-emerald-600'
+                          }`}
                         />
 
                         <button
                           type="button"
-                          onClick={() => handleIncrementCount(item.itemId, 1)}
+                          onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 1); }}
                           className="w-11 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-base flex items-center justify-center transition shadow-sm touch-manipulation cursor-pointer"
                           title="Add 1"
                         >
