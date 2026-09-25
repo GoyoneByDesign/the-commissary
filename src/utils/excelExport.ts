@@ -14,6 +14,7 @@ export interface AnitaExportItem {
   itemCode?: string;
   casePackDetails?: string;
   requiresDating?: boolean;
+  size?: string;
 }
 
 export const exportAnitaSheetToExcel = (
@@ -110,38 +111,54 @@ export const exportAnitaSheetToExcel = (
       { wch: 25 }
     ];
   } else {
-    // Food / CM 1 & CM 2 / Bi-Weekly & Monthly / Catering
+    // Silverware / China / Glassware / Smallwares / Food / Bar Equipment / Patio / Master
+    const hasSize = items.some(i => !!i.size && i.size !== '—');
+    const hasCode = items.some(i => !!i.itemCode);
+    const hasPack = items.some(i => !!i.casePackDetails);
+
+    const cols = ["#", "ITEM NAME"];
+    if (hasSize) cols.push("SIZE");
+    if (hasPack) cols.push("CS PACKED");
+    cols.push("UNIT", "INV (ON-HAND)", "PAR", "ORD (SUGGESTED)", "FINAL ORDER");
+    if (hasCode) cols.push("CODE");
+    cols.push("CATEGORY", "NOTES");
+
     headerRows = [
       [`ANITA'S NEW MEXICAN STYLE MEXICAN FOOD - ${sheetTitle.toUpperCase()}`],
       [`STORE: ${locationCode}`, `NAME: ${userName}`, `MOD: ${managerOnDuty}`, `DATE: ${dateStr}`, `SHIFT / TIME: ${shiftSlot}`],
       [isFoodSheet ? "* NOTE: These items must be dated at the store level." : "NOTICE: ONLY FILL IN CELLS HIGHLIGHTED IN GREEN (INV ON-HAND)"],
       [],
-      ["#", "ITEM NAME", "UNIT", "INV (ON-HAND)", "PAR", "ORD (SUGGESTED)", "FINAL ORDER", "CATEGORY", "NOTES"]
+      cols
     ];
 
     items.forEach((item, index) => {
       const displayName = item.requiresDating ? `* ${item.name}` : item.name;
-      headerRows.push([
-        index + 1,
-        displayName,
+      const row: any[] = [index + 1, displayName];
+      if (hasSize) row.push(item.size || '—');
+      if (hasPack) row.push(item.casePackDetails || '—');
+      row.push(
         item.unit,
         item.inv === '' ? 0 : item.inv,
         item.par,
         item.ord,
-        item.finalOrd,
-        item.category || '',
-        item.notes || ''
-      ]);
+        item.finalOrd
+      );
+      if (hasCode) row.push(item.itemCode || '');
+      row.push(item.category || '', item.notes || '');
+      headerRows.push(row);
     });
 
     colWidths = [
       { wch: 6 },
       { wch: 32 },
+      ...(hasSize ? [{ wch: 14 }] : []),
+      ...(hasPack ? [{ wch: 16 }] : []),
       { wch: 12 },
       { wch: 14 },
       { wch: 10 },
       { wch: 16 },
       { wch: 14 },
+      ...(hasCode ? [{ wch: 16 }] : []),
       { wch: 20 },
       { wch: 30 }
     ];

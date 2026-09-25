@@ -59,11 +59,13 @@ export default function InventoryFormCounting({
   const [shiftSlot, setShiftSlot] = useState<'Breakfast' | 'Lunch' | 'Dinner'>(getCurrentShift);
 
   // Form type heuristics
-  const isBarSheet = useMemo(() => {
+  const isBarBeerSheet = useMemo(() => {
     const t = form.title.toLowerCase();
     const id = form.id.toLowerCase();
-    return id.includes('bar') || t.includes('bar') || t.includes('beer') || t.includes('beverage');
+    return id === 'f-bar-beer' || (id.includes('bar') && t.includes('draft beer'));
   }, [form]);
+
+  const isBarSheet = isBarBeerSheet;
 
   const isCateringSheet = useMemo(() => {
     const t = form.title.toLowerCase();
@@ -92,6 +94,19 @@ export default function InventoryFormCounting({
   // Local state holding the physical count items
   const [itemsMap, setItemsMap] = useState<{ [itemId: string]: SubmissionItem }>({});
 
+  // Dynamic column detection based on item properties
+  const hasSizeColumn = useMemo(() => {
+    return (Object.values(itemsMap) as SubmissionItem[]).some(i => !!i.size && i.size !== '—');
+  }, [itemsMap]);
+
+  const hasCasePackColumn = useMemo(() => {
+    return isPackagingSheet || form.id.includes('food-weekly') || (Object.values(itemsMap) as SubmissionItem[]).some(i => !!i.casePackDetails && i.casePackDetails !== '—');
+  }, [itemsMap, isPackagingSheet, form.id]);
+
+  const hasItemCodeColumn = useMemo(() => {
+    return isPackagingSheet || form.id.includes('food-weekly') || form.id.includes('liquor') || (Object.values(itemsMap) as SubmissionItem[]).some(i => !!i.itemCode && i.itemCode !== '—');
+  }, [itemsMap, isPackagingSheet, form.id]);
+
   // Initialize the list of items for the form structure
   useEffect(() => {
     const freshMap: { [itemId: string]: SubmissionItem } = {};
@@ -106,6 +121,7 @@ export default function InventoryFormCounting({
             name: baseItem.name,
             category: baseItem.category,
             unit: baseItem.unitOfMeasurement,
+            size: baseItem.size,
             currentCount: currentCount,
             parLevel: baseItem.defaultParLevel,
             suggestedOrder: suggested,
@@ -397,6 +413,7 @@ export default function InventoryFormCounting({
       return {
         name: i.name,
         unit: i.unit,
+        size: i.size || base?.size,
         inv: i.currentCount,
         par: i.parLevel,
         ord: i.suggestedOrder,
@@ -404,8 +421,8 @@ export default function InventoryFormCounting({
         wlkIn: i.wlkInCount,
         barCount: i.barCount,
         category: i.category,
-        itemCode: base?.itemCode,
-        casePackDetails: base?.packagingDetails,
+        itemCode: i.itemCode || base?.itemCode,
+        casePackDetails: i.casePackDetails || base?.packagingDetails,
         requiresDating: isDateReq,
         notes: i.co2GaugePct !== undefined ? `CO2 Gauge: ${i.co2GaugePct}%` : ''
       };
@@ -419,7 +436,7 @@ export default function InventoryFormCounting({
       dateStr,
       shiftSlot,
       exportList,
-      isBarSheet,
+      isBarBeerSheet,
       isFoodSheet,
       isPackagingSheet
     );
@@ -430,7 +447,7 @@ export default function InventoryFormCounting({
     let rowsHtml = '';
     const allItems = Object.values(itemsMap) as SubmissionItem[];
 
-    if (isBarSheet) {
+    if (isBarBeerSheet) {
       allItems.forEach((item, idx) => {
         const isBottle6Rule = item.category === 'Beer Bottles' || item.name.includes('CORONA') || item.name.includes('MODELO NEGRA');
         const ruleNote = isBottle6Rule ? '<span style="font-size:8px;color:#d97706;display:block;">(Walk-In: sets of 6 only)</span>' : '';
@@ -616,17 +633,25 @@ export default function InventoryFormCounting({
 
       printHtmlViaIframe(form.title, bodyHtml);
     } else {
-      // Standard / Bi-Weekly & Monthly / Catering
+      // Standard / Bi-Weekly & Monthly / Catering / Equipment / Smallwares / Master Liquor / Weekly Orders
       allItems.forEach((item, idx) => {
+        const base = sampleItems.find(s => s.id === item.itemId);
+        const itemCodeVal = item.itemCode || base?.itemCode;
+        const casePackVal = item.casePackDetails || base?.packagingDetails;
+        const sizeVal = item.size || base?.size;
+
         rowsHtml += `
           <tr>
             <td class="center" style="font-family:monospace;width:30px;">${idx + 1}</td>
             <td><strong>${item.name}</strong></td>
+            ${hasSizeColumn ? `<td class="center" style="font-family:monospace;">${sizeVal || '—'}</td>` : ''}
+            ${hasCasePackColumn ? `<td class="center" style="font-family:monospace;font-size:9.5px;">${casePackVal || '—'}</td>` : ''}
             <td class="center" style="font-family:monospace;">${item.unit}</td>
             <td class="green-cell">${item.currentCount > 0 ? item.currentCount : ''}</td>
             <td class="center" style="font-family:monospace;">${item.parLevel}</td>
             <td class="center" style="font-weight:bold;color:#b45309;">${item.suggestedOrder > 0 ? item.suggestedOrder : '0'}</td>
             <td class="center">${item.finalOrder > 0 ? item.finalOrder : ''}</td>
+            ${hasItemCodeColumn ? `<td class="center" style="font-family:monospace;font-weight:bold;">${itemCodeVal || '—'}</td>` : ''}
             <td class="center">${item.isChecked ? '✔' : ''}</td>
             <td class="center">${item.isReceived ? '✔' : ''}</td>
           </tr>
@@ -652,11 +677,14 @@ export default function InventoryFormCounting({
             <tr>
               <th class="center">#</th>
               <th>Item Name</th>
+              ${hasSizeColumn ? '<th class="center">Size</th>' : ''}
+              ${hasCasePackColumn ? '<th class="center">CS Packed</th>' : ''}
               <th class="center">Unit</th>
               <th class="center" style="background:#d1e7dd!important;color:#0a3622;">INV</th>
               <th class="center">PAR</th>
               <th class="center">ORD</th>
               <th class="center">FINAL</th>
+              ${hasItemCodeColumn ? '<th class="center">Code</th>' : ''}
               <th class="center">COUNT ✔</th>
               <th class="center">REC ✔</th>
             </tr>
@@ -966,15 +994,18 @@ export default function InventoryFormCounting({
                 <tr className="bg-slate-100 border-b border-slate-200 font-mono text-[10px] text-slate-600 uppercase tracking-wider">
                   <th className="py-2.5 px-3 text-center w-12 font-bold">#</th>
                   <th className="py-2.5 px-3 min-w-[200px] font-bold">ITEM NAME</th>
-                  {isPackagingSheet && (
-                    <>
-                      <th className="py-2.5 px-2 text-center w-28 font-bold text-slate-700 bg-slate-200/50">CS PACKED</th>
-                      <th className="py-2.5 px-2 text-center w-24 font-bold text-slate-700 bg-slate-200/50">CODE</th>
-                    </>
+                  {hasSizeColumn && (
+                    <th className="py-2.5 px-2 text-center w-24 font-bold text-slate-700 bg-slate-200/50">SIZE</th>
+                  )}
+                  {hasCasePackColumn && (
+                    <th className="py-2.5 px-2 text-center w-28 font-bold text-slate-700 bg-slate-200/50">CS PACKED</th>
+                  )}
+                  {hasItemCodeColumn && (
+                    <th className="py-2.5 px-2 text-center w-24 font-bold text-slate-700 bg-slate-200/50">CODE</th>
                   )}
                   <th className="py-2.5 px-2 text-center w-20 font-bold">UNIT</th>
                   
-                  {isBarSheet ? (
+                  {isBarBeerSheet ? (
                     <>
                       {/* Walk-in Cooler Green input header */}
                       <th className="py-2.5 px-2 text-center w-24 bg-emerald-100/90 text-emerald-950 font-black border-x border-emerald-200">
@@ -998,7 +1029,7 @@ export default function InventoryFormCounting({
                   <th className="py-2.5 px-2 text-center w-24 font-bold">FINAL</th>
                   <th className="py-2.5 px-2 text-center w-20 font-bold">COUNT ✔</th>
                   
-                  {!isBarSheet && (
+                  {!isBarBeerSheet && (
                     <th className="py-2.5 px-2 text-center w-20 font-bold">REC ✔</th>
                   )}
                   {isCateringSheet && (
@@ -1010,7 +1041,7 @@ export default function InventoryFormCounting({
               <tbody className="divide-y divide-slate-150">
                 {displayedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={(isBarSheet ? 10 : 9) + (isPackagingSheet ? 2 : 0) + (isCateringSheet ? 1 : 0)} className="py-12 text-center text-slate-400">
+                    <td colSpan={(isBarBeerSheet ? 10 : 9) + (hasSizeColumn ? 1 : 0) + (hasCasePackColumn ? 1 : 0) + (hasItemCodeColumn ? 1 : 0) + (isCateringSheet ? 1 : 0)} className="py-12 text-center text-slate-400">
                       No products found matching "{searchQuery}" in {activeSection}
                     </td>
                   </tr>
@@ -1077,16 +1108,25 @@ export default function InventoryFormCounting({
                           </div>
                         </td>
 
-                        {/* Packaging Case Packing Details & Item Code */}
-                        {isPackagingSheet && (
-                          <>
-                            <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-700 font-bold bg-slate-50/70 border-x border-slate-100">
-                              {item.casePackDetails || '—'}
-                            </td>
-                            <td className="py-2 px-2 text-center font-mono text-[10px] text-slate-600 font-bold bg-slate-50/40 border-r border-slate-100">
-                              {item.itemCode || '—'}
-                            </td>
-                          </>
+                        {/* Size Column */}
+                        {hasSizeColumn && (
+                          <td className="py-2 px-2 text-center font-mono text-[11px] text-amber-800 font-bold bg-amber-50/40 border-x border-slate-100">
+                            {item.size || '—'}
+                          </td>
+                        )}
+
+                        {/* Packaging / Weekly Supply Case Packing Details */}
+                        {hasCasePackColumn && (
+                          <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-700 font-bold bg-slate-50/70 border-x border-slate-100">
+                            {item.casePackDetails || '—'}
+                          </td>
+                        )}
+
+                        {/* Item Code (Sysco / ABC liquor) */}
+                        {hasItemCodeColumn && (
+                          <td className="py-2 px-2 text-center font-mono text-[10px] text-slate-600 font-bold bg-slate-50/40 border-r border-slate-100">
+                            {item.itemCode || '—'}
+                          </td>
                         )}
 
                         {/* 3. Unit */}
@@ -1095,7 +1135,7 @@ export default function InventoryFormCounting({
                         </td>
 
                         {/* 4. Store Sheet Editable Inputs (GREEN HIGHLIGHTED CELLS) */}
-                        {isBarSheet ? (
+                        {isBarBeerSheet ? (
                           <>
                             {/* WLK-IN (Green Cell) */}
                             <td className={`py-1.5 px-2 text-center border-x border-emerald-100 ${
@@ -1207,7 +1247,7 @@ export default function InventoryFormCounting({
                         </td>
 
                         {/* 9. Received Checkmark (REC ✔) */}
-                        {!isBarSheet && (
+                        {!isBarBeerSheet && (
                           <td className="py-2 px-2 text-center">
                             <button
                               type="button"
@@ -1282,7 +1322,7 @@ export default function InventoryFormCounting({
                   <div className="overflow-hidden flex-1">
                     <h4 className="font-bold text-slate-900 text-xs truncate">{item.name}</h4>
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase font-bold">
-                      Unit: {item.unit} • {item.category}
+                      Unit: {item.unit} {item.size ? `• Size: ${item.size}` : ''} {item.casePackDetails ? `• Pack: ${item.casePackDetails}` : ''} • {item.category}
                     </p>
                   </div>
                   <button

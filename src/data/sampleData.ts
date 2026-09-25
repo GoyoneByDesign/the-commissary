@@ -8,8 +8,29 @@ import {
   anitasFoodCM1Items,
   anitasFoodCM2Items,
   anitasPackagingItems,
-  anitasPanLidsItems
+  anitasPanLidsItems,
+  anitasSilverwareChinaGlassItems,
+  anitasSmallwaresKitchenItems,
+  anitasBarEquipmentPatioItems,
+  anitasLiquorBeverageMasterItems,
+  anitasFoodVendorOrderItems
 } from './anitasSheetData';
+
+const allFormIds = [
+  'f-food-cm1-cm2',
+  'f-biweekly-monthly',
+  'f-packaging',
+  'f-bar-beer',
+  'f-pans-lids',
+  'f-catering',
+  'f-silverware-china-glass',
+  'f-kitchen-smallwares',
+  'f-bar-equipment-patio',
+  'f-liquor-beverage-master',
+  'f-food-weekly-orders',
+  'f1',
+  'f2'
+];
 
 export const sampleUsers: User[] = [
   {
@@ -18,7 +39,7 @@ export const sampleUsers: User[] = [
     email: 'michael.goyone@gmail.com',
     role: 'Super Admin',
     assignedLocations: ['CM', 'AR', 'AS', 'BK', 'CH', 'FX', 'HN', 'LS', 'MN', 'SP', 'VN'],
-    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1', 'f2']
+    assignedForms: allFormIds
   },
   {
     id: 'u2',
@@ -26,23 +47,23 @@ export const sampleUsers: User[] = [
     email: 'carlos.m@thecommissary.com',
     role: 'Admin',
     assignedLocations: ['CM', 'AR', 'AS'],
-    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1']
+    assignedForms: allFormIds
   },
   {
     id: 'u3',
     name: 'Sarah Jenkins',
     email: 'sarah.j@thecommissary.com',
     role: 'Manager',
-    assignedLocations: ['AR'], // Arlington Manager
-    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1', 'f2']
+    assignedLocations: ['AR', 'AS'], // Arlington / Ashburn Manager
+    assignedForms: allFormIds
   },
   {
     id: 'u4',
     name: 'David Ramirez',
     email: 'david.r@thecommissary.com',
     role: 'Employee',
-    assignedLocations: ['AR'], // Arlington Employee
-    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1']
+    assignedLocations: ['AR', 'AS'], // Arlington / Ashburn Employee
+    assignedForms: allFormIds
   }
 ];
 
@@ -255,19 +276,55 @@ const anitaCategoryImages: Record<string, string> = {
   'Labels': 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=200&q=80',
   'Office/POS': 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=200&q=80',
   'Dining Room': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80',
-  'Empties': 'https://images.unsplash.com/photo-1608270199042-3a832d207ec1?auto=format&fit=crop&w=200&q=80'
+  'Empties': 'https://images.unsplash.com/photo-1608270199042-3a832d207ec1?auto=format&fit=crop&w=200&q=80',
+  'Silverware': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'China': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80',
+  'Glassware': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Server Station': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Cleaning Supplies': 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=200&q=80',
+  'Kitchen Smallwares': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Kitchenware': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Bar Smallwares': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Small Equipment': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=200&q=80',
+  'Safety Supplies': 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=200&q=80',
+  'Dish Room': 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=200&q=80',
+  'Patio Furniture': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80',
+  'Patio Supplies': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80',
+  'Equipment': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=200&q=80',
+  'Wine & Sangria': 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=200&q=80',
+  'Red Wines': 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=200&q=80',
+  'White Wines': 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=200&q=80',
+  'Juice Bottles': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=200&q=80',
+  'Soda Bottles': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=200&q=80',
+  'BIB Syrups': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=200&q=80',
+  'Margarita Mix': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Tequila': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Vodka': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Rum': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Scotch': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Bourbon': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Whiskey': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Whisky': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Gin': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Brandy': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Liqueur': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Dairy & Eggs': 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=200&q=80',
+  'Meats': 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=200&q=80',
+  'Bakery': 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?auto=format&fit=crop&w=200&q=80',
+  'Frozen': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Desserts': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80'
 };
 
 const anitaInventoryItems: InventoryItem[] = allAnitaItems.map((item, index) => {
   let vendor = "Anita's Commissary Kitchen";
-  if (['KEGS', 'BOTTLES'].includes(item.sheetCategory) || item.category.includes('Beer')) {
-    vendor = 'Capital Eagle Distributors';
-  } else if (item.sheetCategory === 'BEVERAGES') {
-    vendor = 'Coca-Cola Refreshments';
+  if (['KEGS', 'BOTTLES', 'LIQUOR', 'WINE', 'MIX'].includes(item.sheetCategory) || item.category.includes('Beer') || item.category.includes('Tequila') || item.category.includes('Vodka') || item.category.includes('Liqueur') || item.category.includes('Wine')) {
+    vendor = 'Capital Eagle / Virginia ABC';
+  } else if (['BEVERAGES', 'JUICE', 'SODA', 'BIB SODA'].includes(item.sheetCategory) || item.category.includes('Juice') || item.category.includes('Soda') || item.category.includes('BIB')) {
+    vendor = 'Coca-Cola Refreshments / PepsiCo';
   } else if (item.category === 'Produce' || item.sheetCategory === 'FRUIT') {
     vendor = 'FreshPoint Produce';
-  } else if (['Paper Goods', 'Chemicals', 'Sanitation', 'Catering Pans', 'Catering Containers', 'Serving Utensils'].includes(item.category)) {
-    vendor = 'Sysco Food Services';
+  } else if (['Paper Goods', 'Chemicals', 'Sanitation', 'Catering Pans', 'Catering Containers', 'Serving Utensils', 'Silverware', 'China', 'Glassware', 'Kitchenware', 'Small Equipment', 'Cleaning Supplies'].includes(item.category) || ['SILVERWARE', 'CHINA', 'GLASSWARE', 'SERVER STATION', 'CLEANING', 'PITCHERS', 'KITCHENWARE', 'SMALL EQUIPMENT', 'FOOD_ORDERS'].includes(item.sheetCategory)) {
+    vendor = 'Sysco Food Services / Edward Don';
   }
 
   const basePrice = item.sheetCategory === 'KEGS' ? 85.00 :
@@ -290,6 +347,7 @@ const anitaInventoryItems: InventoryItem[] = allAnitaItems.map((item, index) => 
     itemCode: item.itemCode || item.id.toUpperCase(),
     casePackDetails: item.casePackDetails,
     requiresDating: item.requiresDating,
+    size: item.size,
     quantityPerCase: item.packSize && item.packSize.includes('24') ? 24 : 1,
     measurementType: item.unit === 'PT' || item.unit === '4QT' ? 'liquid' : 'discrete',
     liquidUnit: item.unit === 'PT' ? 'fl oz' : 'gal',
@@ -317,6 +375,83 @@ export const sampleForms: InventoryForm[] = [
     sections: [
       { name: 'CM 1 - MEATS, PRODUCE & SAUCES', itemIds: anitasFoodCM1Items.map(i => i.id) },
       { name: 'CM 2 - DAIRY, BAKERY & PREP', itemIds: anitasFoodCM2Items.map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-silverware-china-glass',
+    title: "Anita's Silverware, China & Glassware Inventory",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Monthly',
+    dueDate: '2026-06-30',
+    dueTime: '22:00',
+    sections: [
+      { name: 'SILVERWARE', itemIds: anitasSilverwareChinaGlassItems.filter(i => i.sheetCategory === 'SILVERWARE').map(i => i.id) },
+      { name: 'CHINA', itemIds: anitasSilverwareChinaGlassItems.filter(i => i.sheetCategory === 'CHINA').map(i => i.id) },
+      { name: 'GLASSWARE', itemIds: anitasSilverwareChinaGlassItems.filter(i => i.sheetCategory === 'GLASSWARE').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-kitchen-smallwares',
+    title: "Anita's Kitchen Smallwares, Tools & Cleaning Supplies",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Monthly',
+    dueDate: '2026-06-30',
+    dueTime: '22:00',
+    sections: [
+      { name: 'SERVER STATION', itemIds: anitasSmallwaresKitchenItems.filter(i => i.sheetCategory === 'SERVER STATION').map(i => i.id) },
+      { name: 'CLEANING SUPPLIES', itemIds: anitasSmallwaresKitchenItems.filter(i => i.sheetCategory === 'CLEANING').map(i => i.id) },
+      { name: 'PITCHERS', itemIds: anitasSmallwaresKitchenItems.filter(i => i.sheetCategory === 'PITCHERS').map(i => i.id) },
+      { name: 'KITCHENWARE & TOOLS', itemIds: anitasSmallwaresKitchenItems.filter(i => i.sheetCategory === 'KITCHENWARE').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-bar-equipment-patio',
+    title: "Anita's Bar Smallwares, Equipment & Patio Furniture",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Monthly',
+    dueDate: '2026-06-30',
+    dueTime: '22:00',
+    sections: [
+      { name: 'BAR SMALLWARES', itemIds: anitasBarEquipmentPatioItems.filter(i => i.sheetCategory === 'BAR').map(i => i.id) },
+      { name: 'SMALL EQUIPMENT', itemIds: anitasBarEquipmentPatioItems.filter(i => i.sheetCategory === 'SMALL EQUIPMENT').map(i => i.id) },
+      { name: 'DISH RACKS & SANITATION', itemIds: anitasBarEquipmentPatioItems.filter(i => i.sheetCategory === 'CLEANING').map(i => i.id) },
+      { name: 'PATIO & SEASONAL FURNITURE', itemIds: anitasBarEquipmentPatioItems.filter(i => i.sheetCategory === 'PATIO/SEASONAL').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-liquor-beverage-master',
+    title: "Anita's Bar & Beverage Master Audit (Beer, Wine, Liquor, BIB)",
+    locationCode: 'AS', // Ashburn Audit Sheet
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Weekly',
+    dueDate: '2026-05-31',
+    dueTime: '20:30',
+    sections: [
+      { name: 'WINES & SANGRIA', itemIds: anitasLiquorBeverageMasterItems.filter(i => i.sheetCategory === 'WINE').map(i => i.id) },
+      { name: 'JUICES & BOTTLED SODA', itemIds: anitasLiquorBeverageMasterItems.filter(i => ['JUICE', 'SODA'].includes(i.sheetCategory)).map(i => i.id) },
+      { name: 'BIB FOUNTAIN SYRUPS', itemIds: anitasLiquorBeverageMasterItems.filter(i => i.sheetCategory === 'BIB SODA').map(i => i.id) },
+      { name: 'DRAFT BEER (KEGS)', itemIds: anitasLiquorBeverageMasterItems.filter(i => i.sheetCategory === 'KEGS').map(i => i.id) },
+      { name: 'MIXES & SPIRITS (ABC)', itemIds: anitasLiquorBeverageMasterItems.filter(i => ['MIX', 'LIQUOR'].includes(i.sheetCategory)).map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-food-weekly-orders',
+    title: "Anita's Food & Kitchen Weekly Supply Order (Sysco / US Foods)",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Weekly',
+    dueDate: '2026-06-02',
+    dueTime: '11:00',
+    sections: [
+      { name: 'WEEKLY FOOD & SUPPLY ORDER', itemIds: anitasFoodVendorOrderItems.map(i => i.id) }
     ],
     active: true
   },

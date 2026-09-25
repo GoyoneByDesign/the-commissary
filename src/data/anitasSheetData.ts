@@ -4,10 +4,11 @@
 export interface AnitaInventoryItem {
   id: string;
   name: string;
-  sheetCategory: 'BI-WEEKLY' | 'MONTHLY' | 'BOTTLES' | 'KEGS' | 'BEVERAGES' | 'SUPPLIES' | 'OPERATIONAL' | 'FRUIT' | 'CO2' | 'CM1' | 'CM2' | 'PACKAGING' | 'PANS_LIDS';
+  sheetCategory: string;
   unit: string;
   defaultPar: number;
   packSize?: string;
+  size?: string;
   category: string;
   storageLocation: string; // Cooler, Dry Storage, Bar, Walk-In, Kitchen, Catering
   notes?: string;
@@ -401,6 +402,9 @@ export const anitasPanLidsItems: AnitaInventoryItem[] = [
   { id: 'lid-pny-1', name: 'LID 1/6 SIZE PLAST YLW w/NOTCH', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, material: 'Plast Ylw w/Notch', category: 'Pan Lids', storageLocation: 'Line Prep' }
 ];
 
+import { allNewAnitaItems } from './anitasMoreSheetData';
+export * from './anitasMoreSheetData';
+
 export const allAnitaItems: AnitaInventoryItem[] = [
   ...anitasBiWeeklyItems,
   ...anitasMonthlyItems,
@@ -409,6 +413,8 @@ export const allAnitaItems: AnitaInventoryItem[] = [
   ...anitasFoodCM1Items,
   ...anitasFoodCM2Items,
   ...anitasPackagingItems,
-  ...anitasPanLidsItems
+  ...anitasPanLidsItems,
+  ...allNewAnitaItems
 ];
+
 

@@ -60,6 +60,7 @@ export interface InventoryItem {
   yield2Unit?: string;
   casePackDetails?: string;
   requiresDating?: boolean;
+  size?: string;
 }
 
 export interface Vendor {
@@ -116,6 +117,7 @@ export interface SubmissionItem {
   itemCode?: string;
   casePackDetails?: string;
   requiresDating?: boolean;
+  size?: string;
 }
 
 export interface FormSubmission {
