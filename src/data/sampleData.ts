@@ -1,4 +1,11 @@
 import { User, Location, InventoryItem, InventoryForm, FormSubmission } from '../types';
+import { 
+  allAnitaItems, 
+  anitasBiWeeklyItems, 
+  anitasMonthlyItems, 
+  anitasBarItems, 
+  anitasCateringItems 
+} from './anitasSheetData';
 
 export const sampleUsers: User[] = [
   {
@@ -7,7 +14,7 @@ export const sampleUsers: User[] = [
     email: 'michael.goyone@gmail.com',
     role: 'Super Admin',
     assignedLocations: ['CM', 'AR', 'AS', 'BK', 'CH', 'FX', 'HN', 'LS', 'MN', 'SP', 'VN'],
-    assignedForms: ['f1', 'f2']
+    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1', 'f2']
   },
   {
     id: 'u2',
@@ -15,7 +22,7 @@ export const sampleUsers: User[] = [
     email: 'carlos.m@thecommissary.com',
     role: 'Admin',
     assignedLocations: ['CM', 'AR', 'AS'],
-    assignedForms: ['f1']
+    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1']
   },
   {
     id: 'u3',
@@ -23,7 +30,7 @@ export const sampleUsers: User[] = [
     email: 'sarah.j@thecommissary.com',
     role: 'Manager',
     assignedLocations: ['AR'], // Arlington Manager
-    assignedForms: ['f1', 'f2']
+    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1', 'f2']
   },
   {
     id: 'u4',
@@ -31,7 +38,7 @@ export const sampleUsers: User[] = [
     email: 'david.r@thecommissary.com',
     role: 'Employee',
     assignedLocations: ['AR'], // Arlington Employee
-    assignedForms: ['f1']
+    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1']
   }
 ];
 
@@ -71,7 +78,7 @@ export const generateLocations = (): Location[] => {
 };
 
 // 12 core items with matching voice recognition cases
-export const sampleItems: InventoryItem[] = [
+const baseSampleItems: InventoryItem[] = [
   {
     id: 'item1',
     name: 'Chicken Breast',
@@ -218,20 +225,139 @@ export const sampleItems: InventoryItem[] = [
   }
 ];
 
+const anitaCategoryImages: Record<string, string> = {
+  'Produce': 'https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=200&q=80',
+  'Cooler': 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=200&q=80',
+  'Dry Storage': 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?auto=format&fit=crop&w=200&q=80',
+  'Bar': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=200&q=80',
+  'Beer Draft': 'https://images.unsplash.com/photo-1608270199042-3a832d207ec1?auto=format&fit=crop&w=200&q=80',
+  'Beer Bottles': 'https://images.unsplash.com/photo-1600712242805-5f9932c68eae?auto=format&fit=crop&w=200&q=80',
+  'Beverages': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=200&q=80',
+  'Paper Goods': 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=200&q=80',
+  'Chemicals': 'https://images.unsplash.com/photo-1585421514738-01798e348b17?auto=format&fit=crop&w=200&q=80',
+  'Sanitation': 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=200&q=80',
+  'Catering Pans': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Serving Utensils': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Catering Equipment': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Catering Fuel': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Catering Containers': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Catering Beverage': 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=200&q=80',
+  'Catering Linens': 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=200&q=80',
+  'Insulated Transport': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Fleet': 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+  'Fresh Catering Fruit': 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=200&q=80',
+  'Gas Systems': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=200&q=80',
+  'Day Dots': 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=200&q=80',
+  'Labels': 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=200&q=80',
+  'Office/POS': 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=200&q=80',
+  'Dining Room': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80',
+  'Empties': 'https://images.unsplash.com/photo-1608270199042-3a832d207ec1?auto=format&fit=crop&w=200&q=80'
+};
+
+const anitaInventoryItems: InventoryItem[] = allAnitaItems.map((item, index) => {
+  let vendor = "Anita's Commissary Kitchen";
+  if (['KEGS', 'BOTTLES'].includes(item.sheetCategory) || item.category.includes('Beer')) {
+    vendor = 'Capital Eagle Distributors';
+  } else if (item.sheetCategory === 'BEVERAGES') {
+    vendor = 'Coca-Cola Refreshments';
+  } else if (item.category === 'Produce' || item.sheetCategory === 'FRUIT') {
+    vendor = 'FreshPoint Produce';
+  } else if (['Paper Goods', 'Chemicals', 'Sanitation', 'Catering Pans', 'Catering Containers', 'Serving Utensils'].includes(item.category)) {
+    vendor = 'Sysco Food Services';
+  }
+
+  const basePrice = item.sheetCategory === 'KEGS' ? 85.00 :
+                    item.sheetCategory === 'BOTTLES' ? 32.50 :
+                    item.unit === 'SLV' ? 28.00 :
+                    item.unit === 'BX' ? 44.00 :
+                    item.unit === 'RL' ? 14.50 : 12.00;
+
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    description: item.notes || `${item.name} (${item.unit}) - ${item.sheetCategory}`,
+    vendorName: vendor,
+    packagingDetails: item.packSize || `Unit: ${item.unit}`,
+    unitOfMeasurement: item.unit,
+    defaultParLevel: item.defaultPar,
+    photoUrl: anitaCategoryImages[item.category] || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
+    active: true,
+    itemCode: item.id.toUpperCase(),
+    quantityPerCase: item.packSize && item.packSize.includes('24') ? 24 : 1,
+    measurementType: item.unit === 'PT' || item.unit === '4QT' ? 'liquid' : 'discrete',
+    liquidUnit: item.unit === 'PT' ? 'fl oz' : 'gal',
+    createdPrice: basePrice + (index % 5) * 1.5,
+    recentPurchasePrice: basePrice + (index % 5) * 1.5,
+    recentPurchaseDate: '2026-05-18'
+  };
+});
+
+// Full combined catalog (original base items + complete authentic Anita's store catalog)
+export const sampleItems: InventoryItem[] = [
+  ...baseSampleItems,
+  ...anitaInventoryItems
+];
+
 export const sampleForms: InventoryForm[] = [
   {
-    id: 'f1',
-    title: 'Bi-Weekly Food & Beverage Audit',
+    id: 'f-biweekly-monthly',
+    title: "Anita's Bi-Weekly & Monthly Store Order Form",
     locationCode: 'AR', // Arlington
-    assignedUserIds: ['u3', 'u4'], // Sarah, David
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
     frequency: 'Bi-weekly',
+    dueDate: '2026-06-03',
+    dueTime: '10:59',
+    sections: [
+      { name: 'BI-WEEKLY ORDER', itemIds: anitasBiWeeklyItems.map(i => i.id) },
+      { name: 'MONTHLY ORDER', itemIds: anitasMonthlyItems.map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-bar-beer',
+    title: "Anita's Bar, Draft Beer & Beverage Audit",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Weekly',
+    dueDate: '2026-05-31',
+    dueTime: '23:59',
+    sections: [
+      { name: 'DRAFT BEER (KEGS)', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'KEGS').map(i => i.id) },
+      { name: 'BEER BOTTLES (6-PACK RULE)', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'BOTTLES').map(i => i.id) },
+      { name: 'SODA & BEVERAGES', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'BEVERAGES').map(i => i.id) },
+      { name: 'BULK GAS & CO2', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'CO2').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-catering',
+    title: "Anita's Catering & Operational Supplies Form",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Weekly',
+    dueDate: '2026-06-01',
+    dueTime: '17:00',
+    sections: [
+      { name: 'CATERING SUPPLIES', itemIds: anitasCateringItems.filter(i => i.sheetCategory === 'SUPPLIES').map(i => i.id) },
+      { name: 'OPERATIONAL EQUIPMENT', itemIds: anitasCateringItems.filter(i => i.sheetCategory === 'OPERATIONAL').map(i => i.id) },
+      { name: 'FRESH CATERING FRUIT', itemIds: anitasCateringItems.filter(i => i.sheetCategory === 'FRUIT').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f1',
+    title: 'Daily Store Prep & Kitchen Stock Sheet',
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Daily',
     dueDate: '2026-05-30',
     dueTime: '22:00',
     sections: [
-      { name: 'Cooler', itemIds: ['item1', 'item3', 'item7', 'item8'] },
-      { name: 'Dry Storage', itemIds: ['item6', 'item9', 'item11'] },
+      { name: 'Cooler', itemIds: ['item1', 'item3', 'item7', 'item8', 'bw-1', 'bw-2', 'bw-7', 'bw-13'] },
+      { name: 'Dry Storage', itemIds: ['item6', 'item9', 'item11', 'bw-3', 'bw-4', 'bw-6', 'bw-8', 'bw-9'] },
       { name: 'Prep Area', itemIds: ['item2'] },
-      { name: 'Bar', itemIds: ['item10', 'item12'] },
+      { name: 'Bar', itemIds: ['item10', 'item12', 'bw-5'] },
       { name: 'Freezer', itemIds: ['item5'] },
       { name: 'Steam Table', itemIds: ['item4'] }
     ],
@@ -239,9 +365,9 @@ export const sampleForms: InventoryForm[] = [
   },
   {
     id: 'f2',
-    title: 'Daily Commissary Stock Sheet',
-    locationCode: 'CM', // Commissary
-    assignedUserIds: ['u1', 'u2'],
+    title: 'Daily Commissary Central Stock Sheet',
+    locationCode: 'CM',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
     frequency: 'Daily',
     dueDate: '2026-05-24',
     dueTime: '17:00',

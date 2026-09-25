@@ -101,6 +101,16 @@ export interface SubmissionItem {
   finalOrder: number;     // Editable
   total: number;          // Current Count + Final Order
   photoUrl: string;
+  wlkInCount?: number;
+  barCount?: number;
+  isChecked?: boolean;
+  isReceived?: boolean;
+  isBackOrder?: boolean;
+  pmixSold?: number;
+  variance?: number;
+  co2GaugePct?: number;
+  shiftSlot?: 'Breakfast' | 'Lunch' | 'Dinner';
+  managerOnDuty?: string;
 }
 
 export interface FormSubmission {
@@ -113,6 +123,8 @@ export interface FormSubmission {
   timestamp: string; // ISO String
   items: SubmissionItem[];
   notes?: string;
+  managerOnDuty?: string;
+  shiftSlot?: 'Breakfast' | 'Lunch' | 'Dinner';
 }
 
 export interface VoiceInstruction {
