@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryForm, SubmissionItem, FormSubmission } from '../types';
 import { sampleItems, sampleSubmissions } from '../data/sampleData';
+import { anitasFoodCM1Items, anitasFoodCM2Items } from '../data/anitasSheetData';
 import { printHtmlViaIframe } from '../utils/printHelper';
 import { exportAnitaSheetToExcel } from '../utils/excelExport';
 import { 
@@ -37,7 +38,8 @@ export default function InventoryFormCounting({
 
   // Store sheet header metadata matching Anita's physical forms
   const [managerOnDuty, setManagerOnDuty] = useState(currentUser.name || 'Sarah Jenkins');
-  const [operatorName, setOperatorName] = useState(currentUser.name || 'Staff Member');
+  const [employeeEntering, setEmployeeEntering] = useState(currentUser.name || 'Sarah Jenkins');
+  const [invTakenBy, setInvTakenBy] = useState('David Ramirez');
   const [dateStr, setDateStr] = useState(() => {
     const today = new Date();
     return today.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -69,6 +71,24 @@ export default function InventoryFormCounting({
     return id.includes('catering') || t.includes('catering');
   }, [form]);
 
+  const isFoodSheet = useMemo(() => {
+    const t = form.title.toLowerCase();
+    const id = form.id.toLowerCase();
+    return id.includes('food') || id.includes('cm') || t.includes('food') || t.includes('kitchen') || t.includes('cm 1');
+  }, [form]);
+
+  const isPackagingSheet = useMemo(() => {
+    const t = form.title.toLowerCase();
+    const id = form.id.toLowerCase();
+    return id.includes('packaging') || t.includes('packaging') || t.includes('paper');
+  }, [form]);
+
+  const isPansSheet = useMemo(() => {
+    const t = form.title.toLowerCase();
+    const id = form.id.toLowerCase();
+    return id.includes('pans') || t.includes('pan') || t.includes('lids');
+  }, [form]);
+
   // Local state holding the physical count items
   const [itemsMap, setItemsMap] = useState<{ [itemId: string]: SubmissionItem }>({});
 
@@ -97,7 +117,10 @@ export default function InventoryFormCounting({
             isChecked: false,
             isReceived: false,
             isBackOrder: false,
-            co2GaugePct: id === 'co2-1' ? 75 : undefined
+            co2GaugePct: id === 'co2-1' ? 75 : undefined,
+            itemCode: baseItem.itemCode,
+            casePackDetails: baseItem.casePackDetails,
+            requiresDating: baseItem.requiresDating
           };
         }
       });
@@ -304,7 +327,7 @@ export default function InventoryFormCounting({
         formTitle: form.title,
         locationCode: form.locationCode,
         userId: currentUser.id,
-        userName: operatorName,
+        userName: employeeEntering,
         timestamp: new Date().toISOString(),
         items: finalizedList,
         notes: notes,
@@ -368,28 +391,37 @@ export default function InventoryFormCounting({
 
   // Export to authentic Excel (.xlsx) file
   const handleExportExcel = () => {
-    const exportList = (Object.values(itemsMap) as SubmissionItem[]).map(i => ({
-      name: i.name,
-      unit: i.unit,
-      inv: i.currentCount,
-      par: i.parLevel,
-      ord: i.suggestedOrder,
-      finalOrd: i.finalOrder,
-      wlkIn: i.wlkInCount,
-      barCount: i.barCount,
-      category: i.category,
-      notes: i.co2GaugePct !== undefined ? `CO2 Gauge: ${i.co2GaugePct}%` : ''
-    }));
+    const exportList = (Object.values(itemsMap) as SubmissionItem[]).map(i => {
+      const base = sampleItems.find(s => s.id === i.itemId);
+      const isDateReq = base?.name.startsWith('*') || (anitasFoodCM1Items.some(c => c.id === i.itemId && c.requiresDating) || anitasFoodCM2Items.some(c => c.id === i.itemId && c.requiresDating));
+      return {
+        name: i.name,
+        unit: i.unit,
+        inv: i.currentCount,
+        par: i.parLevel,
+        ord: i.suggestedOrder,
+        finalOrd: i.finalOrder,
+        wlkIn: i.wlkInCount,
+        barCount: i.barCount,
+        category: i.category,
+        itemCode: base?.itemCode,
+        casePackDetails: base?.packagingDetails,
+        requiresDating: isDateReq,
+        notes: i.co2GaugePct !== undefined ? `CO2 Gauge: ${i.co2GaugePct}%` : ''
+      };
+    });
 
     exportAnitaSheetToExcel(
       form.title,
       form.locationCode,
       managerOnDuty,
-      operatorName,
+      employeeEntering,
       dateStr,
       shiftSlot,
       exportList,
-      isBarSheet
+      isBarSheet,
+      isFoodSheet,
+      isPackagingSheet
     );
   };
 
@@ -428,7 +460,7 @@ export default function InventoryFormCounting({
           ${form.title}
         </div>
         <div class="meta-header">
-          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>NAME:</strong> ${operatorName} &nbsp;|&nbsp; <strong>MOD:</strong> ${managerOnDuty}</div>
+          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>CASHIER/MOD:</strong> ${managerOnDuty} &nbsp;|&nbsp; <strong>ENTERING:</strong> ${employeeEntering}</div>
           <div><strong>DATE:</strong> ${dateStr} &nbsp;|&nbsp; <strong>SHIFT:</strong> ${shiftSlot}</div>
         </div>
 
@@ -449,6 +481,126 @@ export default function InventoryFormCounting({
               <th class="center">ORD</th>
               <th class="center">FINAL</th>
               <th class="center">✔</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>Manager on Duty Signature: <span class="sig-line"></span></div>
+          <div>Date / Time Verified: <span class="sig-line" style="width:120px;"></span></div>
+        </div>
+      `;
+
+      printHtmlViaIframe(form.title, bodyHtml);
+    } else if (isPackagingSheet) {
+      allItems.forEach((item, idx) => {
+        const base = sampleItems.find(s => s.id === item.itemId);
+        rowsHtml += `
+          <tr>
+            <td class="center" style="font-family:monospace;width:25px;">${idx + 1}</td>
+            <td class="center" style="font-family:monospace;font-size:9.5px;">${base?.packagingDetails || ''}</td>
+            <td><strong>${item.name}</strong></td>
+            <td class="center" style="font-family:monospace;">${item.unit}</td>
+            <td class="green-cell">${item.currentCount > 0 ? item.currentCount : ''}</td>
+            <td class="center" style="font-family:monospace;">${item.parLevel}</td>
+            <td class="center" style="font-weight:bold;color:#b45309;">${item.suggestedOrder > 0 ? item.suggestedOrder : '0'}</td>
+            <td class="center">${item.finalOrder > 0 ? item.finalOrder : ''}</td>
+            <td class="center" style="font-family:monospace;font-weight:bold;">${base?.itemCode || ''}</td>
+            <td class="center">${item.isChecked ? '✔' : ''}</td>
+          </tr>
+        `;
+      });
+
+      const bodyHtml = `
+        <h1>Anita's New Mexican Style Mexican Food</h1>
+        <div style="font-size:13px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;">
+          ${form.title}
+        </div>
+        <div class="meta-header">
+          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>CASHIER/MOD:</strong> ${managerOnDuty} &nbsp;|&nbsp; <strong>ENTERING:</strong> ${employeeEntering} &nbsp;|&nbsp; <strong>INV BY:</strong> ${invTakenBy}</div>
+          <div><strong>DATE:</strong> ${dateStr} &nbsp;|&nbsp; <strong>SHIFT:</strong> ${shiftSlot}</div>
+        </div>
+
+        <div class="banner-notice">
+          🟢 ONLY FILL IN CELLS HIGHLIGHTED IN GREEN! (INV ON-HAND)
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="center">#</th>
+              <th class="center">CS PACKED</th>
+              <th>Item Name</th>
+              <th class="center">Unit</th>
+              <th class="center" style="background:#d1e7dd!important;color:#0a3622;">INV</th>
+              <th class="center">PAR</th>
+              <th class="center">ORD</th>
+              <th class="center">FINAL</th>
+              <th class="center">CODE</th>
+              <th class="center">✔</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>Manager on Duty Signature: <span class="sig-line"></span></div>
+          <div>Date / Time Verified: <span class="sig-line" style="width:120px;"></span></div>
+        </div>
+      `;
+
+      printHtmlViaIframe(form.title, bodyHtml);
+    } else if (isFoodSheet) {
+      allItems.forEach((item, idx) => {
+        const base = sampleItems.find(s => s.id === item.itemId);
+        const isDateReq = base?.name.startsWith('*') || (anitasFoodCM1Items.some(c => c.id === item.itemId && c.requiresDating) || anitasFoodCM2Items.some(c => c.id === item.itemId && c.requiresDating));
+        const nameDisplay = isDateReq ? `* <strong>${item.name}</strong> <span style="font-size:8px;color:#d97706;">(Date at Store)</span>` : `<strong>${item.name}</strong>`;
+        rowsHtml += `
+          <tr>
+            <td class="center" style="font-family:monospace;width:30px;">${idx + 1}</td>
+            <td>${nameDisplay}</td>
+            <td class="center" style="font-family:monospace;">${item.unit}</td>
+            <td class="green-cell">${item.currentCount > 0 ? item.currentCount : ''}</td>
+            <td class="center" style="font-family:monospace;">${item.parLevel}</td>
+            <td class="center" style="font-weight:bold;color:#b45309;">${item.suggestedOrder > 0 ? item.suggestedOrder : '0'}</td>
+            <td class="center">${item.finalOrder > 0 ? item.finalOrder : ''}</td>
+            <td class="center">${item.isChecked ? '✔' : ''}</td>
+            <td class="center">${item.isReceived ? '✔' : ''}</td>
+          </tr>
+        `;
+      });
+
+      const bodyHtml = `
+        <h1>Anita's New Mexican Style Mexican Food</h1>
+        <div style="font-size:13px;font-weight:bold;margin-bottom:6px;text-transform:uppercase;">
+          ${form.title}
+        </div>
+        <div class="meta-header">
+          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>CASHIER/MOD:</strong> ${managerOnDuty} &nbsp;|&nbsp; <strong>ENTERING:</strong> ${employeeEntering} &nbsp;|&nbsp; <strong>INV BY:</strong> ${invTakenBy}</div>
+          <div><strong>DATE:</strong> ${dateStr} &nbsp;|&nbsp; <strong>SHIFT:</strong> ${shiftSlot}</div>
+        </div>
+
+        <div class="banner-notice" style="background:#fef3c7;border-color:#fde68a;color:#92400e;">
+          🏷️ * These items must be dated at the store level. &nbsp;|&nbsp; ONLY FILL IN CELLS HIGHLIGHTED IN GREEN!
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="center">#</th>
+              <th>Item Name</th>
+              <th class="center">Unit</th>
+              <th class="center" style="background:#d1e7dd!important;color:#0a3622;">INV</th>
+              <th class="center">PAR</th>
+              <th class="center">ORD</th>
+              <th class="center">FINAL</th>
+              <th class="center">COUNT ✔</th>
+              <th class="center">REC ✔</th>
             </tr>
           </thead>
           <tbody>
@@ -487,7 +639,7 @@ export default function InventoryFormCounting({
           ${form.title}
         </div>
         <div class="meta-header">
-          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>NAME:</strong> ${operatorName} &nbsp;|&nbsp; <strong>MOD:</strong> ${managerOnDuty}</div>
+          <div><strong>STORE:</strong> ${form.locationCode} &nbsp;|&nbsp; <strong>CASHIER/MOD:</strong> ${managerOnDuty} &nbsp;|&nbsp; <strong>ENTERING:</strong> ${employeeEntering} &nbsp;|&nbsp; <strong>INV BY:</strong> ${invTakenBy}</div>
           <div><strong>DATE:</strong> ${dateStr} &nbsp;|&nbsp; <strong>SHIFT:</strong> ${shiftSlot}</div>
         </div>
 
@@ -600,41 +752,55 @@ export default function InventoryFormCounting({
           </div>
         </div>
 
-        {/* Store Metadata Inputs: NAME, MOD, DATE, TIME OF INV / SHIFT */}
-        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        {/* Store Metadata Inputs: CASHIER/MOD, ENTERING IN COMPUTER, INV TAKEN BY, DATE, TIME OF INV / SHIFT */}
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
           
-          {/* Operator Name */}
+          {/* 1. Cashier / Manager On Duty (MOD) */}
           <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
             <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">
-              Operator (NAME)
-            </label>
-            <input 
-              type="text"
-              value={operatorName}
-              onChange={(e) => setOperatorName(e.target.value)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
-              placeholder="Employee taking count"
-            />
-          </div>
-
-          {/* Manager on Duty */}
-          <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
-            <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">
-              Manager On Duty (MOD)
+              CASHIER / MOD
             </label>
             <input 
               type="text"
               value={managerOnDuty}
               onChange={(e) => setManagerOnDuty(e.target.value)}
               className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
-              placeholder="Manager on duty"
+              placeholder="Cashier / MOD"
             />
           </div>
 
-          {/* Date of Inventory */}
+          {/* 2. Employee Entering in Computer */}
           <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
             <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">
-              Date (DATE)
+              ENTERING IN COMPUTER
+            </label>
+            <input 
+              type="text"
+              value={employeeEntering}
+              onChange={(e) => setEmployeeEntering(e.target.value)}
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
+              placeholder="Computer entry"
+            />
+          </div>
+
+          {/* 3. Inventory Taken By */}
+          <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
+            <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">
+              INV TAKEN BY
+            </label>
+            <input 
+              type="text"
+              value={invTakenBy}
+              onChange={(e) => setInvTakenBy(e.target.value)}
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
+              placeholder="Physical count taker"
+            />
+          </div>
+
+          {/* 4. Date of Inventory */}
+          <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
+            <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">
+              DATE (DATE)
             </label>
             <input 
               type="text"
@@ -645,10 +811,10 @@ export default function InventoryFormCounting({
             />
           </div>
 
-          {/* Shift Slot Selector (Breakfast, Lunch, Dinner) */}
+          {/* 5. Shift Slot Selector (Breakfast, Lunch, Dinner) */}
           <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
             <label className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block flex items-center justify-between">
-              <span>Time Slot / Shift</span>
+              <span>TIME / SHIFT</span>
               <Clock className="w-3 h-3 text-amber-400" />
             </label>
             <select
@@ -663,7 +829,7 @@ export default function InventoryFormCounting({
           </div>
         </div>
 
-        {/* Authentic Store Instructions & Rules Banner */}
+        {/* Authentic Store Instructions & Rules Banners */}
         <div className="space-y-2">
           {/* Green Cell Directive Banner */}
           <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs px-4 py-2 rounded-xl flex items-center justify-between font-mono font-bold">
@@ -675,6 +841,16 @@ export default function InventoryFormCounting({
               Formula: ORD = MAX(0, PAR - INV)
             </span>
           </div>
+
+          {/* Special Store Notice: CM 1 & CM 2 Store Food Sheet Dating Rule */}
+          {isFoodSheet && (
+            <div className="bg-rose-500/15 border border-rose-500/35 text-rose-200 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2.5 font-mono">
+              <span className="text-base shrink-0">🏷️</span>
+              <span>
+                <strong>STORE DATING NOTICE:</strong> <span className="text-amber-300 font-bold">*</span> Items marked with an asterisk must be dated at the store level.
+              </span>
+            </div>
+          )}
 
           {/* Special Store Notice: 6-Bottle Rule for Walk-In Cooler (for Bar Sheets) */}
           {isBarSheet && (
@@ -790,6 +966,12 @@ export default function InventoryFormCounting({
                 <tr className="bg-slate-100 border-b border-slate-200 font-mono text-[10px] text-slate-600 uppercase tracking-wider">
                   <th className="py-2.5 px-3 text-center w-12 font-bold">#</th>
                   <th className="py-2.5 px-3 min-w-[200px] font-bold">ITEM NAME</th>
+                  {isPackagingSheet && (
+                    <>
+                      <th className="py-2.5 px-2 text-center w-28 font-bold text-slate-700 bg-slate-200/50">CS PACKED</th>
+                      <th className="py-2.5 px-2 text-center w-24 font-bold text-slate-700 bg-slate-200/50">CODE</th>
+                    </>
+                  )}
                   <th className="py-2.5 px-2 text-center w-20 font-bold">UNIT</th>
                   
                   {isBarSheet ? (
@@ -828,7 +1010,7 @@ export default function InventoryFormCounting({
               <tbody className="divide-y divide-slate-150">
                 {displayedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={isBarSheet ? 10 : 9} className="py-12 text-center text-slate-400">
+                    <td colSpan={(isBarSheet ? 10 : 9) + (isPackagingSheet ? 2 : 0) + (isCateringSheet ? 1 : 0)} className="py-12 text-center text-slate-400">
                       No products found matching "{searchQuery}" in {activeSection}
                     </td>
                   </tr>
@@ -856,13 +1038,21 @@ export default function InventoryFormCounting({
 
                         {/* 2. Item Name & Badges */}
                         <td className="py-2 px-3">
-                          <div className="font-bold text-slate-900 text-xs">
-                            {item.name}
+                          <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                            {item.requiresDating && <span className="text-rose-600 font-black text-sm">*</span>}
+                            <span>{item.name}</span>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                             <span className="text-[9px] font-mono text-slate-500 uppercase">
                               {item.category}
                             </span>
+
+                            {/* Store level dating badge for CM 1 & CM 2 */}
+                            {item.requiresDating && (
+                              <span className="text-[8px] font-mono font-bold bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded border border-rose-200">
+                                * Must Date at Store Level
+                              </span>
+                            )}
                             
                             {/* 6-bottle rule notice on bottles */}
                             {isBottle && (
@@ -886,6 +1076,18 @@ export default function InventoryFormCounting({
                             )}
                           </div>
                         </td>
+
+                        {/* Packaging Case Packing Details & Item Code */}
+                        {isPackagingSheet && (
+                          <>
+                            <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-700 font-bold bg-slate-50/70 border-x border-slate-100">
+                              {item.casePackDetails || '—'}
+                            </td>
+                            <td className="py-2 px-2 text-center font-mono text-[10px] text-slate-600 font-bold bg-slate-50/40 border-r border-slate-100">
+                              {item.itemCode || '—'}
+                            </td>
+                          </>
+                        )}
 
                         {/* 3. Unit */}
                         <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-600 font-semibold">
@@ -1038,6 +1240,22 @@ export default function InventoryFormCounting({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Authentic Store Facility Outlet Codes Footer */}
+          <div className="bg-slate-900 border-t border-slate-800 px-4 py-3 text-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
+                Store Locations
+              </span>
+              <span className="text-slate-400 text-[11px]">
+                AS (Ashburn) • BK (Burke) • CH (Chantilly) • FX (Fairfax) • HN (Herndon) • LS (Leesburg) • MN (Manassas) • SP (South Riding) • VN (Vienna) • CM (Commissary)
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] text-slate-400 shrink-0">
+              <span>Active Store: <strong className="text-amber-400">{form.locationCode}</strong></span>
+              <span>Shift: <strong className="text-emerald-400">{shiftSlot}</strong></span>
+            </div>
           </div>
         </div>
       ) : (

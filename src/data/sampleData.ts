@@ -4,7 +4,11 @@ import {
   anitasBiWeeklyItems, 
   anitasMonthlyItems, 
   anitasBarItems, 
-  anitasCateringItems 
+  anitasCateringItems,
+  anitasFoodCM1Items,
+  anitasFoodCM2Items,
+  anitasPackagingItems,
+  anitasPanLidsItems
 } from './anitasSheetData';
 
 export const sampleUsers: User[] = [
@@ -14,7 +18,7 @@ export const sampleUsers: User[] = [
     email: 'michael.goyone@gmail.com',
     role: 'Super Admin',
     assignedLocations: ['CM', 'AR', 'AS', 'BK', 'CH', 'FX', 'HN', 'LS', 'MN', 'SP', 'VN'],
-    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1', 'f2']
+    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1', 'f2']
   },
   {
     id: 'u2',
@@ -22,7 +26,7 @@ export const sampleUsers: User[] = [
     email: 'carlos.m@thecommissary.com',
     role: 'Admin',
     assignedLocations: ['CM', 'AR', 'AS'],
-    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1']
+    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1']
   },
   {
     id: 'u3',
@@ -30,7 +34,7 @@ export const sampleUsers: User[] = [
     email: 'sarah.j@thecommissary.com',
     role: 'Manager',
     assignedLocations: ['AR'], // Arlington Manager
-    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1', 'f2']
+    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1', 'f2']
   },
   {
     id: 'u4',
@@ -38,7 +42,7 @@ export const sampleUsers: User[] = [
     email: 'david.r@thecommissary.com',
     role: 'Employee',
     assignedLocations: ['AR'], // Arlington Employee
-    assignedForms: ['f-biweekly-monthly', 'f-bar-beer', 'f-catering', 'f1']
+    assignedForms: ['f-food-cm1-cm2', 'f-biweekly-monthly', 'f-packaging', 'f-bar-beer', 'f-pans-lids', 'f-catering', 'f1']
   }
 ];
 
@@ -278,12 +282,14 @@ const anitaInventoryItems: InventoryItem[] = allAnitaItems.map((item, index) => 
     category: item.category,
     description: item.notes || `${item.name} (${item.unit}) - ${item.sheetCategory}`,
     vendorName: vendor,
-    packagingDetails: item.packSize || `Unit: ${item.unit}`,
+    packagingDetails: item.casePackDetails || item.packSize || `Unit: ${item.unit}`,
     unitOfMeasurement: item.unit,
     defaultParLevel: item.defaultPar,
     photoUrl: anitaCategoryImages[item.category] || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80',
     active: true,
-    itemCode: item.id.toUpperCase(),
+    itemCode: item.itemCode || item.id.toUpperCase(),
+    casePackDetails: item.casePackDetails,
+    requiresDating: item.requiresDating,
     quantityPerCase: item.packSize && item.packSize.includes('24') ? 24 : 1,
     measurementType: item.unit === 'PT' || item.unit === '4QT' ? 'liquid' : 'discrete',
     liquidUnit: item.unit === 'PT' ? 'fl oz' : 'gal',
@@ -301,6 +307,20 @@ export const sampleItems: InventoryItem[] = [
 
 export const sampleForms: InventoryForm[] = [
   {
+    id: 'f-food-cm1-cm2',
+    title: "Anita's CM 1 & CM 2 Store Food & Kitchen Stock Sheet",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Daily',
+    dueDate: '2026-05-30',
+    dueTime: '10:59',
+    sections: [
+      { name: 'CM 1 - MEATS, PRODUCE & SAUCES', itemIds: anitasFoodCM1Items.map(i => i.id) },
+      { name: 'CM 2 - DAIRY, BAKERY & PREP', itemIds: anitasFoodCM2Items.map(i => i.id) }
+    ],
+    active: true
+  },
+  {
     id: 'f-biweekly-monthly',
     title: "Anita's Bi-Weekly & Monthly Store Order Form",
     locationCode: 'AR', // Arlington
@@ -311,6 +331,19 @@ export const sampleForms: InventoryForm[] = [
     sections: [
       { name: 'BI-WEEKLY ORDER', itemIds: anitasBiWeeklyItems.map(i => i.id) },
       { name: 'MONTHLY ORDER', itemIds: anitasMonthlyItems.map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-packaging',
+    title: "Anita's Packaging & Paper Goods Order Form",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Bi-weekly',
+    dueDate: '2026-06-05',
+    dueTime: '17:00',
+    sections: [
+      { name: 'PACKAGING & PAPER GOODS', itemIds: anitasPackagingItems.map(i => i.id) }
     ],
     active: true
   },
@@ -327,6 +360,22 @@ export const sampleForms: InventoryForm[] = [
       { name: 'BEER BOTTLES (6-PACK RULE)', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'BOTTLES').map(i => i.id) },
       { name: 'SODA & BEVERAGES', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'BEVERAGES').map(i => i.id) },
       { name: 'BULK GAS & CO2', itemIds: anitasBarItems.filter(i => i.sheetCategory === 'CO2').map(i => i.id) }
+    ],
+    active: true
+  },
+  {
+    id: 'f-pans-lids',
+    title: "Anita's Hotel Pans, Inserts & Lids Matrix Sheet",
+    locationCode: 'AR',
+    assignedUserIds: ['u1', 'u2', 'u3', 'u4'],
+    frequency: 'Monthly',
+    dueDate: '2026-06-15',
+    dueTime: '22:00',
+    sections: [
+      { name: 'METAL PANS (1", 2", 4", 6")', itemIds: anitasPanLidsItems.filter(i => i.material === 'Metal' && i.category.includes('Pan')).map(i => i.id) },
+      { name: 'PLASTIC CLEAR PANS', itemIds: anitasPanLidsItems.filter(i => i.material === 'Plastic Clear').map(i => i.id) },
+      { name: 'PLASTIC BLACK PANS', itemIds: anitasPanLidsItems.filter(i => i.material === 'Plastic Black').map(i => i.id) },
+      { name: 'PAN LIDS (METAL & PLASTIC)', itemIds: anitasPanLidsItems.filter(i => i.category === 'Pan Lids').map(i => i.id) }
     ],
     active: true
   },

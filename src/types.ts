@@ -58,6 +58,8 @@ export interface InventoryItem {
   yield1Unit?: string;
   yield2Qty?: number;
   yield2Unit?: string;
+  casePackDetails?: string;
+  requiresDating?: boolean;
 }
 
 export interface Vendor {
@@ -111,6 +113,9 @@ export interface SubmissionItem {
   co2GaugePct?: number;
   shiftSlot?: 'Breakfast' | 'Lunch' | 'Dinner';
   managerOnDuty?: string;
+  itemCode?: string;
+  casePackDetails?: string;
+  requiresDating?: boolean;
 }
 
 export interface FormSubmission {

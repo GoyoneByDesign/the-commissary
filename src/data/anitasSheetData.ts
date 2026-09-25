@@ -4,13 +4,18 @@
 export interface AnitaInventoryItem {
   id: string;
   name: string;
-  sheetCategory: 'BI-WEEKLY' | 'MONTHLY' | 'BOTTLES' | 'KEGS' | 'BEVERAGES' | 'SUPPLIES' | 'OPERATIONAL' | 'FRUIT' | 'CO2';
+  sheetCategory: 'BI-WEEKLY' | 'MONTHLY' | 'BOTTLES' | 'KEGS' | 'BEVERAGES' | 'SUPPLIES' | 'OPERATIONAL' | 'FRUIT' | 'CO2' | 'CM1' | 'CM2' | 'PACKAGING' | 'PANS_LIDS';
   unit: string;
   defaultPar: number;
   packSize?: string;
   category: string;
-  storageLocation: string; // Cooler, Dry Storage, Bar, Walk-In, Kitchen
+  storageLocation: string; // Cooler, Dry Storage, Bar, Walk-In, Kitchen, Catering
   notes?: string;
+  itemCode?: string;
+  casePackDetails?: string;
+  requiresDating?: boolean;
+  depth?: string;
+  material?: string;
 }
 
 export const anitasBiWeeklyItems: AnitaInventoryItem[] = [
@@ -199,9 +204,211 @@ export const anitasCateringItems: AnitaInventoryItem[] = [
   { id: 'frt-4', name: 'Fruit Cups - 50 Ct', sheetCategory: 'FRUIT', unit: 'EA', defaultPar: 2, category: 'Fresh Catering Fruit', storageLocation: 'Cooler' }
 ];
 
+// CM 1: Daily Food, Meats & Fresh Produce Sheet
+export const anitasFoodCM1Items: AnitaInventoryItem[] = [
+  { id: 'cm1-1', name: 'RED CHILE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 60, packSize: 'RK=12 BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-2', name: 'BEAN REFRIED', sheetCategory: 'CM1', unit: 'BG', defaultPar: 19, packSize: 'RK=8 BAG', category: 'Beans & Rice', storageLocation: 'Cooler' },
+  { id: 'cm1-3', name: 'TACO MEAT', sheetCategory: 'CM1', unit: 'BG', defaultPar: 12, packSize: 'RK=12 BAG', category: 'Meats', storageLocation: 'Cooler' },
+  { id: 'cm1-4', name: 'RICE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 17, packSize: 'RK=8 BAG', category: 'Beans & Rice', storageLocation: 'Cooler' },
+  { id: 'cm1-5', name: 'C/O SALSA', sheetCategory: 'CM1', unit: 'RK', defaultPar: 4, packSize: 'RK=800 RACK', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-6', name: 'GREEN CHILE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 15, packSize: 'BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-7', name: 'CHILE CON QUESO', sheetCategory: 'CM1', unit: 'BG', defaultPar: 18, packSize: 'BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-8', name: 'ZORRO TACO', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler' },
+  { id: 'cm1-9', name: 'ZORRO CHIX', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler' },
+  { id: 'cm1-10', name: 'ZORRO CHORZ', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler' },
+  { id: 'cm1-11', name: 'BEAN BLACK', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Beans & Rice', storageLocation: 'Cooler' },
+  { id: 'cm1-12', name: 'BEAN WHOLE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 2, packSize: 'BAG', category: 'Beans & Rice', storageLocation: 'Cooler' },
+  { id: 'cm1-13', name: 'GRAVY', sheetCategory: 'CM1', unit: 'BG', defaultPar: 4, packSize: 'BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-14', name: 'SALSA VERDE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 4, packSize: 'BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-15', name: 'ENSALADA', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BG=12', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-16', name: 'SALSA DE MARISCO', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BG=12', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm1-17', name: 'GRAPEFRUIT', sheetCategory: 'CM1', unit: 'EA', defaultPar: 1, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-18', name: 'ORANGE', sheetCategory: 'CM1', unit: 'EA', defaultPar: 1, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-19', name: 'APPLES - GREEN', sheetCategory: 'CM1', unit: 'EA', defaultPar: 1, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-20', name: 'APPLES - RED', sheetCategory: 'CM1', unit: 'EA', defaultPar: 1, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-21', name: 'LIMES', sheetCategory: 'CM1', unit: 'EA', defaultPar: 28, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-22', name: 'LEMON', sheetCategory: 'CM1', unit: 'EA', defaultPar: 15, packSize: 'EA', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-23', name: 'ONIONS SLICED', sheetCategory: 'CM1', unit: 'BG', defaultPar: 7, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-24', name: 'BELL PEPPERS', sheetCategory: 'CM1', unit: 'BG', defaultPar: 6, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-25', name: 'CHIVES', sheetCategory: 'CM1', unit: 'BG', defaultPar: 4, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler' },
+  { id: 'cm1-26', name: 'LETTUCE ARCADIA', sheetCategory: 'CM1', unit: 'BG', defaultPar: 2, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-27', name: 'LETTUCE SALAD MIX', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-28', name: 'LETTUCE SHREDDED', sheetCategory: 'CM1', unit: 'BG', defaultPar: 5, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-29', name: 'LETTUCE ROMAINE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-30', name: 'FLAN', sheetCategory: 'CM1', unit: 'EA', defaultPar: 6, packSize: 'EA', category: 'Desserts', storageLocation: 'Cooler' },
+  { id: 'cm1-31', name: 'WATER', sheetCategory: 'CM1', unit: 'CS', defaultPar: 1, packSize: 'CS', category: 'Beverages', storageLocation: 'Dry Storage' },
+  { id: 'cm1-32', name: 'MILK', sheetCategory: 'CM1', unit: 'GAL', defaultPar: 1, packSize: 'GAL', category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm1-33', name: 'CHICKEN', sheetCategory: 'CM1', unit: 'BG', defaultPar: 19, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-34', name: 'CHORIZO', sheetCategory: 'CM1', unit: 'BG', defaultPar: 6, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-35', name: 'PK BBQ', sheetCategory: 'CM1', unit: 'BG', defaultPar: 4, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-36', name: 'PK VERDE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 8, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-37', name: 'PK ADOVADO', sheetCategory: 'CM1', unit: 'BG', defaultPar: 8, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-38', name: 'BEEF STEW', sheetCategory: 'CM1', unit: 'BG', defaultPar: 5, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-39', name: 'RIB EYE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 4, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-40', name: 'CHICHARRON', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-41', name: 'Mr. T SPEC. BB C/O', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-42', name: 'MR. T DINING', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-43', name: 'CHIX FAJITAS', sheetCategory: 'CM1', unit: 'BG', defaultPar: 7, packSize: 'BAG=5', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-44', name: 'BEEF SPEC. FAJITAS', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG=5', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-45', name: 'CHICKEN BREAST', sheetCategory: 'CM1', unit: 'BG', defaultPar: 3, packSize: 'BAG=5', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-46', name: 'BEEF FAJITAS', sheetCategory: 'CM1', unit: 'BG', defaultPar: 6, packSize: 'BAG=5', category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-47', name: 'SOUP - CHIX', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Soups', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-48', name: 'SOUP - PORK', sheetCategory: 'CM1', unit: 'BG', defaultPar: 2, packSize: 'BAG', category: 'Soups', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm1-49', name: 'POSOLE', sheetCategory: 'CM1', unit: 'BG', defaultPar: 1, packSize: 'BAG', category: 'Soups', storageLocation: 'Cooler', requiresDating: true }
+];
+
+// CM 2: Dairy, Bakery, Breakfast, Frozen & Prep Sheet
+export const anitasFoodCM2Items: AnitaInventoryItem[] = [
+  { id: 'cm2-1', name: 'WHIP CREAM', sheetCategory: 'CM2', unit: 'BG', defaultPar: 3, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-2', name: 'PLANTAIN', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, category: 'Produce', storageLocation: 'Freezer' },
+  { id: 'cm2-3', name: 'SPINACH FZ', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, category: 'Produce', storageLocation: 'Freezer' },
+  { id: 'cm2-4', name: 'TOPPING TURKEY', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, category: 'Breakfast Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-5', name: 'TOPPING HAM', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, category: 'Breakfast Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-6', name: 'HAMBURGER BUN', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'Bag=12', category: 'Bakery', storageLocation: 'Dry Storage' },
+  { id: 'cm2-7', name: 'TEXAS TOAST', sheetCategory: 'CM2', unit: 'BG', defaultPar: 3, category: 'Bakery', storageLocation: 'Dry Storage' },
+  { id: 'cm2-8', name: 'BREAD WHITE', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, category: 'Bakery', storageLocation: 'Dry Storage' },
+  { id: 'cm2-9', name: 'BREAD WHEAT', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, category: 'Bakery', storageLocation: 'Dry Storage' },
+  { id: 'cm2-10', name: 'CHIX TAQUITOS', sheetCategory: 'CM2', unit: '4QT', defaultPar: 2, packSize: '4QT=15', category: 'Appetizers', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-11', name: 'BEEF TAQUITOS', sheetCategory: 'CM2', unit: '8QT', defaultPar: 1, packSize: '8QT=48', category: 'Appetizers', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-12', name: 'SMOKY', sheetCategory: 'CM2', unit: 'BG', defaultPar: 9, packSize: 'Bag=10', category: 'Breakfast Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-13', name: 'TURKEY SAUSAGE', sheetCategory: 'CM2', unit: 'BG', defaultPar: 4, packSize: 'BAG=10', category: 'Breakfast Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-14', name: 'CHIX FINGERS', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'BAG=6', category: 'Poultry', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-15', name: 'SAUSAGE PATTY', sheetCategory: 'CM2', unit: 'BG', defaultPar: 5, packSize: 'BAG=10', category: 'Breakfast Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-16', name: 'HAMBURGER PATTY', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'BAG=5', category: 'Meats', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-17', name: 'VEGAN CHORIZO', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, packSize: 'BAG=10', category: 'Vegetarian', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-18', name: 'BISCUITS', sheetCategory: 'CM2', unit: 'BG', defaultPar: 14, packSize: 'BAG=6', category: 'Bakery', storageLocation: 'Cooler' },
+  { id: 'cm2-19', name: 'VEGGIES BB', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-20', name: 'P/C BUTTER', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-21', name: 'MIX LIME', sheetCategory: 'CM2', unit: 'CT', defaultPar: 7, category: 'Bar Mixes', storageLocation: 'Bar' },
+  { id: 'cm2-22', name: 'MIX STRAWBERRY', sheetCategory: 'CM2', unit: 'CT', defaultPar: 3, category: 'Bar Mixes', storageLocation: 'Bar' },
+  { id: 'cm2-23', name: 'MIX ICECREAM', sheetCategory: 'CM2', unit: 'CT', defaultPar: 3, category: 'Desserts', storageLocation: 'Cooler' },
+  { id: 'cm2-24', name: 'MIX PINA', sheetCategory: 'CM2', unit: 'CT', defaultPar: 2, category: 'Bar Mixes', storageLocation: 'Bar' },
+  { id: 'cm2-25', name: 'MIX MANGO', sheetCategory: 'CM2', unit: 'CT', defaultPar: 3, category: 'Bar Mixes', storageLocation: 'Bar' },
+  { id: 'cm2-26', name: 'SOPAPILLAS', sheetCategory: 'CM2', unit: '2QT', defaultPar: 3, packSize: '2 QT', category: 'Desserts', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-27', name: 'TAMAL PORK', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'Bag=10', category: 'Entrees', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-28', name: 'RELLENO', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'Bag=10', category: 'Entrees', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-29', name: 'MAC & CHEESE', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, packSize: 'BAG=4', category: 'Sides', storageLocation: 'Cooler' },
+  { id: 'cm2-30', name: 'MARGARINE', sheetCategory: 'CM2', unit: 'TUB', defaultPar: 2, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-31', name: 'CHURROS', sheetCategory: 'CM2', unit: 'BG', defaultPar: 3, packSize: 'BAG=30', category: 'Desserts', storageLocation: 'Freezer' },
+  { id: 'cm2-32', name: 'BROWNIES', sheetCategory: 'CM2', unit: 'BG', defaultPar: 2, packSize: 'BAG=5', category: 'Desserts', storageLocation: 'Dry Storage' },
+  { id: 'cm2-33', name: 'VEGGIES D/I', sheetCategory: 'CM2', unit: 'BG', defaultPar: 5, category: 'Produce', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-34', name: 'STEAK NY', sheetCategory: 'CM2', unit: 'EA', defaultPar: 12, category: 'Meats', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-35', name: 'SHRIMP LG', sheetCategory: 'CM2', unit: 'BG', defaultPar: 4, packSize: 'BAG=12', category: 'Seafood', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-36', name: 'SALMON', sheetCategory: 'CM2', unit: 'EA', defaultPar: 6, category: 'Seafood', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-37', name: 'TILAPIA', sheetCategory: 'CM2', unit: 'EA', defaultPar: 8, category: 'Seafood', storageLocation: 'Cooler', requiresDating: true },
+  { id: 'cm2-38', name: 'COD FISH', sheetCategory: 'CM2', unit: 'BG', defaultPar: 1, packSize: 'BAG=4', category: 'Seafood', storageLocation: 'Freezer', requiresDating: true },
+  { id: 'cm2-39', name: 'CHEESE AMERICAN', sheetCategory: 'CM2', unit: 'BG', defaultPar: 15, packSize: 'RK=6 BAG', category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-40', name: 'LONGHORN', sheetCategory: 'CM2', unit: 'BG', defaultPar: 15, packSize: 'RK=6 BAG', category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-41', name: 'DINE-IN SALSA', sheetCategory: 'CM2', unit: 'BG', defaultPar: 11, packSize: 'RK=8 BAG', category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm2-42', name: 'EMPANADAS BEEF', sheetCategory: 'CM2', unit: 'TUB', defaultPar: 1, packSize: 'TUB=15', category: 'Appetizers', storageLocation: 'Freezer' },
+  { id: 'cm2-43', name: 'PUPUSA-BEAN', sheetCategory: 'CM2', unit: '2QT', defaultPar: 3, packSize: '2QT=5', category: 'Appetizers', storageLocation: 'Cooler' },
+  { id: 'cm2-44', name: 'PUPUSA-PORK', sheetCategory: 'CM2', unit: '4QT', defaultPar: 2, packSize: '4QT=10', category: 'Appetizers', storageLocation: 'Cooler' },
+  { id: 'cm2-45', name: 'BTL MILK 8oz', sheetCategory: 'CM2', unit: 'EA', defaultPar: 3, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-46', name: 'BTL MILK, CHOC 8oz', sheetCategory: 'CM2', unit: 'EA', defaultPar: 4, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-47', name: 'DRESS HOUSE', sheetCategory: 'CM2', unit: 'QT', defaultPar: 1.5, category: 'Dressings', storageLocation: 'Cooler' },
+  { id: 'cm2-48', name: 'DRESS RANCH', sheetCategory: 'CM2', unit: 'QT', defaultPar: 1, category: 'Dressings', storageLocation: 'Cooler' },
+  { id: 'cm2-49', name: 'DRESS CAESAR', sheetCategory: 'CM2', unit: 'PT', defaultPar: 0.5, category: 'Dressings', storageLocation: 'Cooler' },
+  { id: 'cm2-50', name: 'APPLE DESSERT', sheetCategory: 'CM2', unit: 'QT', defaultPar: 1, category: 'Desserts', storageLocation: 'Cooler' },
+  { id: 'cm2-51', name: 'CHERRY DESSERT', sheetCategory: 'CM2', unit: 'QT', defaultPar: 1, category: 'Desserts', storageLocation: 'Cooler' },
+  { id: 'cm2-52', name: 'TOR FRY 10"', sheetCategory: 'CM2', unit: 'BG', defaultPar: 3, category: 'Tortillas', storageLocation: 'Dry Storage' },
+  { id: 'cm2-53', name: 'STRAWBERRY', sheetCategory: 'CM2', unit: 'PT', defaultPar: 1, category: 'Bar/Dessert', storageLocation: 'Cooler' },
+  { id: 'cm2-54', name: 'BAR CHERRY', sheetCategory: 'CM2', unit: 'PT', defaultPar: 1, category: 'Bar/Dessert', storageLocation: 'Bar' },
+  { id: 'cm2-55', name: 'OLIVES', sheetCategory: 'CM2', unit: 'PT', defaultPar: 1, category: 'Toppings', storageLocation: 'Cooler' },
+  { id: 'cm2-56', name: 'ADOVADO MARINADE', sheetCategory: 'CM2', unit: 'PT', defaultPar: 1, category: 'Sauces & Bases', storageLocation: 'Cooler' },
+  { id: 'cm2-57', name: 'CREMA', sheetCategory: 'CM2', unit: 'PT', defaultPar: 3, category: 'Dairy', storageLocation: 'Cooler' },
+  { id: 'cm2-58', name: 'SOUR CREAM', sheetCategory: 'CM2', unit: 'EA', defaultPar: 4, category: 'Dairy', storageLocation: 'Cooler' }
+];
+
+// Packaging & Paper Goods Order Form (with Case Pack & Item Codes)
+export const anitasPackagingItems: AnitaInventoryItem[] = [
+  { id: 'pkg-1', name: 'CUP PORTION 2oz', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 8, packSize: 'SLV', itemCode: 'S-P200BLK', casePackDetails: '10 / 250 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' },
+  { id: 'pkg-2', name: 'LID 2oz', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 12, packSize: 'SLV', itemCode: 'D-PL200N', casePackDetails: '20 / 125 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' },
+  { id: 'pkg-3', name: 'CUP SALSA 3.25oz BLK', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 10, packSize: 'SLV', itemCode: 'S-P325BLK', casePackDetails: '10 / 250 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' },
+  { id: 'pkg-4', name: 'CONT 3 COMPT FOIL & LID', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1.5, packSize: 'CS', itemCode: 'H-2045', casePackDetails: '1 / 250 EA', category: 'Carryout Containers', storageLocation: 'Dry Storage' },
+  { id: 'pkg-5', name: 'CONT SM BLK 6X6', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 2, packSize: 'SLV', itemCode: 'EP-PP225BK', casePackDetails: '4 / 150 EA', category: 'Carryout Containers', storageLocation: 'Dry Storage' },
+  { id: 'pkg-6', name: 'CONT 3 COMP BLK', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'EP-PP883BK', casePackDetails: '1 / 150 EA', category: 'Carryout Containers', storageLocation: 'Dry Storage' },
+  { id: 'pkg-7', name: 'CONT CLEAR', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 1, packSize: 'SLV', itemCode: 'D-C90PST1', casePackDetails: '2 / 125 EA', category: 'Carryout Containers', storageLocation: 'Dry Storage' },
+  { id: 'pkg-8', name: 'CONT 4 COMP BLK', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'S-919020', casePackDetails: '1 / 100 EA', category: 'Carryout Containers', storageLocation: 'Dry Storage' },
+  { id: 'pkg-9', name: 'BAG SOPAPILLA', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 2.5, packSize: 'BX', itemCode: 'FP-508', casePackDetails: '1 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-10', name: 'STIR', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 1, packSize: 'BX', itemCode: 'BS-1241203', casePackDetails: '1 / 1000 EA', category: 'Utensils', storageLocation: 'Dry Storage', notes: 'New' },
+  { id: 'pkg-11', name: 'FOIL ALUMINUM ROLL LG', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 0.5, packSize: 'EA', itemCode: 'WP-285', casePackDetails: '1 / 1 EA', category: 'Bags & Wraps', storageLocation: 'Kitchen' },
+  { id: 'pkg-12', name: 'FILM ROLL SM', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 1, packSize: 'EA', itemCode: 'SW-122', casePackDetails: '1 / 1 EA', category: 'Bags & Wraps', storageLocation: 'Kitchen' },
+  { id: 'pkg-13', name: 'CONT FOIL PLATTER LG', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 3, packSize: 'SLV', itemCode: 'WP-5708', casePackDetails: '4 / 125 EA', category: 'Catering Pans', storageLocation: 'Dry Storage' },
+  { id: 'pkg-14', name: 'LID BOARD PLATTER LG', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 1, packSize: 'SLV', itemCode: 'H-2062L', casePackDetails: '2 / 250 EA', category: 'Catering Pans', storageLocation: 'Dry Storage' },
+  { id: 'pkg-15', name: 'BOX NACHO', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 0.5, packSize: 'CS', itemCode: 'SC-0967', casePackDetails: '1 / 250 EA', category: 'Boxes', storageLocation: 'Dry Storage' },
+  { id: 'pkg-16', name: 'BOX PIZZA', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 0.5, packSize: 'CS', itemCode: 'A-10COR', casePackDetails: '1 / 50 EA', category: 'Boxes', storageLocation: 'Dry Storage' },
+  { id: 'pkg-17', name: 'WAX SPECIAL', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 4, packSize: 'PK', itemCode: 'SP-1212-SP', casePackDetails: '5 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-18', name: 'WAX BLUE', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 1, packSize: 'PK', itemCode: 'MN-110844', casePackDetails: '2 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-19', name: 'WAX RED', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 1, packSize: 'PK', itemCode: 'MN-110840', casePackDetails: '2 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-20', name: 'WAX GREEN', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 1, packSize: 'PK', itemCode: 'MN-110842', casePackDetails: '2 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-21', name: 'WAX BLACK', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 1, packSize: 'PK', itemCode: 'MN-110846', casePackDetails: '2 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-22', name: 'TWIST TIE', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 1, packSize: 'BX', itemCode: 'B-4R', casePackDetails: '1 / 2000 EA', category: 'Supplies', storageLocation: 'Dry Storage', notes: 'New' },
+  { id: 'pkg-23', name: 'BAG CLEAR CHIPS SM', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 2, packSize: 'PK', itemCode: 'E-7G063515', casePackDetails: '10 / 100 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-24', name: 'BAG CLEAR CHIPS MD/LG', sheetCategory: 'PACKAGING', unit: 'PK', defaultPar: 1, packSize: 'PK', itemCode: 'E-10G084018', casePackDetails: '10 / 100 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-25', name: 'BAG PAPER SM', sheetCategory: 'PACKAGING', unit: 'BD', defaultPar: 1, packSize: 'BD', itemCode: 'D-71004', casePackDetails: '2 / 200 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-26', name: 'BAG PAPER MD', sheetCategory: 'PACKAGING', unit: 'BD', defaultPar: 1, packSize: 'BD', itemCode: 'D-71008', casePackDetails: '2 / 200 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-27', name: 'BAG PAPER LG', sheetCategory: 'PACKAGING', unit: 'BD', defaultPar: 1.5, packSize: 'BD', itemCode: 'D-80083', casePackDetails: '1 / 500 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-28', name: 'LOGO - BAG PLASTIC SM', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 2, packSize: 'CS', itemCode: 'G-8515-AN', casePackDetails: '1 / 500 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-29', name: 'LOGO - BAG PLASTIC MD', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'G-ANITA-M', casePackDetails: '1 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-30', name: 'LOGO - BAG PLASTIC LG', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'G-12920-AN', casePackDetails: '1 / 1000 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-31', name: 'LOGO - BAG PAPER MD', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'FC-13713-AN', casePackDetails: '1 / 250 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-32', name: 'LOGO - BAG PAPER LG', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 0.3, packSize: 'CS', itemCode: 'FC-14916-AN', casePackDetails: '1 / 200 EA', category: 'Bags & Wraps', storageLocation: 'Dry Storage' },
+  { id: 'pkg-33', name: 'WRAP. BLK FORKS', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'AC-S1601FB', casePackDetails: '1 / 1000 EA', category: 'Utensils', storageLocation: 'Dry Storage' },
+  { id: 'pkg-34', name: 'WRAP. BLK KNIFE', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 2, packSize: 'CS', itemCode: 'AC-S3601FB', casePackDetails: '1 / 1000 EA', category: 'Utensils', storageLocation: 'Dry Storage' },
+  { id: 'pkg-35', name: 'WRAP. BLK SPOON', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 0.5, packSize: 'CS', itemCode: 'AC-S2601FB', casePackDetails: '1 / 1000 EA', category: 'Utensils', storageLocation: 'Dry Storage' },
+  { id: 'pkg-36', name: 'NAPKIN CARRYOUT', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 3, packSize: 'CS', itemCode: 'SCA-DX900', casePackDetails: '12 / 500 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' },
+  { id: 'pkg-37', name: 'POS STICKY PAPER', sheetCategory: 'PACKAGING', unit: 'CS', defaultPar: 1, packSize: 'CS', itemCode: 'IX-90232241', casePackDetails: '1 / 12 EA', category: 'Office/POS', storageLocation: 'Dry Storage', notes: 'New' },
+  { id: 'pkg-38', name: 'TOWEL BROWN', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 6, packSize: 'EA', itemCode: 'SCA-290088', casePackDetails: '1 / 6 EA', category: 'Sanitation', storageLocation: 'Kitchen' },
+  { id: 'pkg-39', name: 'PLASTIC APRON', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 0.3, packSize: 'BX', itemCode: 'R-RPA20HW', casePackDetails: '1 / 100 EA', category: 'Sanitation', storageLocation: 'Kitchen' },
+  { id: 'pkg-40', name: 'OIL CONE FILTER', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 0.5, packSize: 'BX', itemCode: 'D-FC10', casePackDetails: '1 / 50 EA', category: 'Kitchen Equipment', storageLocation: 'Kitchen' },
+  { id: 'pkg-41', name: 'PINK SOAP', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 5, packSize: 'EA', itemCode: 'LP-40DW4', casePackDetails: '1 / 4 EA', category: 'Chemicals', storageLocation: 'Kitchen' },
+  { id: 'pkg-42', name: 'BLEACH', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 3, packSize: 'EA', itemCode: 'CG-4942', casePackDetails: '1 / 4 EA', category: 'Chemicals', storageLocation: 'Kitchen' },
+  { id: 'pkg-43', name: 'SOAP REFILL HAND', sheetCategory: 'PACKAGING', unit: 'EA', defaultPar: 2, packSize: 'EA', itemCode: 'GJ-5361', casePackDetails: '1 / 2 EA', category: 'Chemicals', storageLocation: 'Restrooms' },
+  { id: 'pkg-44', name: 'GLOVES MD', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 6, packSize: 'BX', itemCode: 'EM-4102', casePackDetails: '1 / 100 EA', category: 'Sanitation', storageLocation: 'Kitchen' },
+  { id: 'pkg-45', name: 'GLOVES LG', sheetCategory: 'PACKAGING', unit: 'BX', defaultPar: 6, packSize: 'BX', itemCode: 'EM-4103', casePackDetails: '1 / 100 EA', category: 'Sanitation', storageLocation: 'Kitchen' },
+  { id: 'pkg-46', name: 'LID COFFEE', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 4, packSize: 'SLV', itemCode: 'S-TLB316', casePackDetails: '20 / 50 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' },
+  { id: 'pkg-47', name: 'LID SODA', sheetCategory: 'PACKAGING', unit: 'SLV', defaultPar: 3, packSize: 'SLV', itemCode: 'D-626TS', casePackDetails: '10 / 100 EA', category: 'Paper Goods', storageLocation: 'Dry Storage' }
+];
+
+// Hotel Pans & Lids 2D Matrix Items
+export const anitasPanLidsItems: AnitaInventoryItem[] = [
+  // Metal Pans
+  { id: 'pan-m-1', name: 'METAL FULL SIZE PERF 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 4, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-2', name: 'METAL FULL SIZE 2"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 6, depth: '2"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-3', name: 'METAL FULL SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 8, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-4', name: 'METAL 1/2 SIZE 2"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 8, depth: '2"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-5', name: 'METAL 1/2 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-6', name: 'METAL 1/3 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 16, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-7', name: 'METAL 1/6 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 24, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+  { id: 'pan-m-8', name: 'METAL 1/9 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, depth: '4"', material: 'Metal', category: 'Metal Pans', storageLocation: 'Kitchen' },
+
+  // Clear Plastic Pans
+  { id: 'pan-pc-1', name: 'PLASTIC CLEAR 1/3 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 8, depth: '4"', material: 'Plastic Clear', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+  { id: 'pan-pc-2', name: 'PLASTIC CLEAR 1/3 SIZE 6"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 6, depth: '6"', material: 'Plastic Clear', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+  { id: 'pan-pc-3', name: 'PLASTIC CLEAR 1/6 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 18, depth: '4"', material: 'Plastic Clear', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+  { id: 'pan-pc-4', name: 'PLASTIC CLEAR 1/6 SIZE 6"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, depth: '6"', material: 'Plastic Clear', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+  { id: 'pan-pc-5', name: 'PLASTIC CLEAR 1/9 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, depth: '4"', material: 'Plastic Clear', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+
+  // Black Plastic Pans
+  { id: 'pan-pb-1', name: 'PLASTIC BLACK 1/6 SIZE 4"', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 14, depth: '4"', material: 'Plastic Black', category: 'Plastic Pans', storageLocation: 'Line Prep' },
+
+  // Lids
+  { id: 'lid-m-1', name: 'LID FULL SIZE METAL', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 6, material: 'Metal', category: 'Pan Lids', storageLocation: 'Kitchen' },
+  { id: 'lid-m-2', name: 'LID 1/2 SIZE METAL', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 8, material: 'Metal', category: 'Pan Lids', storageLocation: 'Kitchen' },
+  { id: 'lid-m-3', name: 'LID 1/3 SIZE METAL', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, material: 'Metal', category: 'Pan Lids', storageLocation: 'Kitchen' },
+  { id: 'lid-p-1', name: 'LID 1/3 SIZE PLASTIC CLEAR', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 8, material: 'Plastic', category: 'Pan Lids', storageLocation: 'Line Prep' },
+  { id: 'lid-pn-1', name: 'LID 1/6 SIZE PLAST. w/NOTCH', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 18, material: 'Plast. w/Notch', category: 'Pan Lids', storageLocation: 'Line Prep' },
+  { id: 'lid-pny-1', name: 'LID 1/6 SIZE PLAST YLW w/NOTCH', sheetCategory: 'PANS_LIDS', unit: 'EA', defaultPar: 12, material: 'Plast Ylw w/Notch', category: 'Pan Lids', storageLocation: 'Line Prep' }
+];
+
 export const allAnitaItems: AnitaInventoryItem[] = [
   ...anitasBiWeeklyItems,
   ...anitasMonthlyItems,
   ...anitasBarItems,
-  ...anitasCateringItems
+  ...anitasCateringItems,
+  ...anitasFoodCM1Items,
+  ...anitasFoodCM2Items,
+  ...anitasPackagingItems,
+  ...anitasPanLidsItems
 ];
+

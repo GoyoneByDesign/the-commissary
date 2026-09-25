@@ -11,6 +11,9 @@ export interface AnitaExportItem {
   barCount?: number;
   notes?: string;
   category?: string;
+  itemCode?: string;
+  casePackDetails?: string;
+  requiresDating?: boolean;
 }
 
 export const exportAnitaSheetToExcel = (
@@ -21,11 +24,15 @@ export const exportAnitaSheetToExcel = (
   dateStr: string,
   shiftSlot: string,
   items: AnitaExportItem[],
-  isBarSheet: boolean = false
+  isBarSheet: boolean = false,
+  isFoodSheet: boolean = false,
+  isPackagingSheet: boolean = false
 ) => {
   const wb = XLSX.utils.book_new();
 
   let headerRows: any[][];
+  let colWidths: any[];
+
   if (isBarSheet) {
     headerRows = [
       ["ANITA'S NEW MEXICAN STYLE MEXICAN FOOD - BEER, BAR & BEVERAGE AUDIT"],
@@ -53,19 +60,70 @@ export const exportAnitaSheetToExcel = (
         item.notes || ''
       ]);
     });
-  } else {
+
+    colWidths = [
+      { wch: 6 },
+      { wch: 32 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 30 }
+    ];
+  } else if (isPackagingSheet) {
     headerRows = [
-      [`ANITA'S NEW MEXICAN STYLE MEXICAN FOOD - ${sheetTitle.toUpperCase()}`],
+      [`ANITA'S NEW MEXICAN STYLE MEXICAN FOOD - PACKAGING & PAPER GOODS ORDER FORM`],
       [`STORE: ${locationCode}`, `NAME: ${userName}`, `MOD: ${managerOnDuty}`, `DATE: ${dateStr}`, `SHIFT / TIME: ${shiftSlot}`],
       ["NOTICE: ONLY FILL IN CELLS HIGHLIGHTED IN GREEN (INV ON-HAND)"],
       [],
-      ["#", "ITEM NAME", "UNIT", "INV (ON-HAND)", "PAR", "ORD (SUGGESTED)", "FINAL ORDER", "CATEGORY", "NOTES"]
+      ["#", "CS PACKED", "ITEM NAME", "UNIT", "INV (ON-HAND)", "PAR", "ORD (SUGGESTED)", "FINAL ORDER", "CODE", "NOTES"]
     ];
 
     items.forEach((item, index) => {
       headerRows.push([
         index + 1,
+        item.casePackDetails || '',
         item.name,
+        item.unit,
+        item.inv === '' ? 0 : item.inv,
+        item.par,
+        item.ord,
+        item.finalOrd,
+        item.itemCode || '',
+        item.notes || ''
+      ]);
+    });
+
+    colWidths = [
+      { wch: 6 },
+      { wch: 16 },
+      { wch: 32 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 25 }
+    ];
+  } else {
+    // Food / CM 1 & CM 2 / Bi-Weekly & Monthly / Catering
+    headerRows = [
+      [`ANITA'S NEW MEXICAN STYLE MEXICAN FOOD - ${sheetTitle.toUpperCase()}`],
+      [`STORE: ${locationCode}`, `NAME: ${userName}`, `MOD: ${managerOnDuty}`, `DATE: ${dateStr}`, `SHIFT / TIME: ${shiftSlot}`],
+      [isFoodSheet ? "* NOTE: These items must be dated at the store level." : "NOTICE: ONLY FILL IN CELLS HIGHLIGHTED IN GREEN (INV ON-HAND)"],
+      [],
+      ["#", "ITEM NAME", "UNIT", "INV (ON-HAND)", "PAR", "ORD (SUGGESTED)", "FINAL ORDER", "CATEGORY", "NOTES"]
+    ];
+
+    items.forEach((item, index) => {
+      const displayName = item.requiresDating ? `* ${item.name}` : item.name;
+      headerRows.push([
+        index + 1,
+        displayName,
         item.unit,
         item.inv === '' ? 0 : item.inv,
         item.par,
@@ -75,21 +133,22 @@ export const exportAnitaSheetToExcel = (
         item.notes || ''
       ]);
     });
+
+    colWidths = [
+      { wch: 6 },
+      { wch: 32 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 30 }
+    ];
   }
 
   const ws = XLSX.utils.aoa_to_sheet(headerRows);
-  ws['!cols'] = [
-    { wch: 6 },
-    { wch: 32 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 10 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 30 }
-  ];
+  ws['!cols'] = colWidths;
 
   XLSX.utils.book_append_sheet(wb, ws, "Inventory Sheet");
   const cleanDate = dateStr.replace(/[^\w-]/g, '_');
