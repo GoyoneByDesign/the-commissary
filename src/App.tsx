@@ -18,6 +18,7 @@ import InventoryFormCounting from './components/InventoryFormCounting';
 import AppLogo from './components/AppLogo';
 import { GitHubPushModal } from './components/GitHubPushModal';
 import ExcelImportModal from './components/ExcelImportModal';
+import { allOfficialStoreForms, allOfficialStoreItems } from './data/storeFormsData';
 
 export default function App() {
   // Dual-Platform Workspace view
@@ -25,9 +26,19 @@ export default function App() {
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
 
-  // Dynamic Forms and Items state (supports uploaded Excel inventory sheets)
-  const [formsList, setFormsList] = useState<InventoryForm[]>(sampleForms);
-  const [itemsList, setItemsList] = useState<InventoryItem[]>(sampleItems);
+  // Dynamic Forms and Items state (preloaded with all 214 official store checksheets from OneDrive + sampleForms)
+  const [formsList, setFormsList] = useState<InventoryForm[]>(() => {
+    const map = new Map<string, InventoryForm>();
+    allOfficialStoreForms.forEach(f => map.set(f.id, f));
+    sampleForms.forEach(f => map.set(f.id, f));
+    return Array.from(map.values());
+  });
+  const [itemsList, setItemsList] = useState<InventoryItem[]>(() => {
+    const map = new Map<string, InventoryItem>();
+    allOfficialStoreItems.forEach(i => map.set(i.id, i));
+    sampleItems.forEach(i => map.set(i.id, i));
+    return Array.from(map.values());
+  });
 
   // Interactive Web Client Router
   const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'forgot' | 'dashboard' | 'locations' | 'forms' | 'counting' | 'voice' | 'confirmation' | 'reports' | 'settings' | 'admin'>('splash');
@@ -691,53 +702,85 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="divide-y space-y-3">
-                    {formsList.filter(f => f.locationCode === selectedLocCode || f.locationCode === 'STORE' || f.locationCode === 'ALL' || !f.locationCode).map((form) => {
-                      const isUserLinked = simUser.assignedForms.includes(form.id) || simUser.role === 'Super Admin' || simUser.role === 'Admin';
+                  <div className="space-y-3">
+                    {(() => {
+                      const matchingForms = formsList.filter(f => f.locationCode === selectedLocCode || f.locationCode === 'STORE' || f.locationCode === 'ALL' || !f.locationCode);
+                      if (matchingForms.length === 0) {
+                        return (
+                          <div className="py-8 text-center text-slate-400">
+                            <FileSpreadsheet className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                            <p className="font-bold text-sm text-slate-600">No scheduled checksheets found for this location</p>
+                            <p className="text-xs text-slate-400 mt-1">Upload an Excel (.xlsx) sheet to get started right away</p>
+                            <button
+                              type="button"
+                              onClick={() => setShowExcelImportModal(true)}
+                              className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" /> Upload Store Sheet
+                            </button>
+                          </div>
+                        );
+                      }
+
                       return (
-                        <div key={form.id} className="py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                          <div className="text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="bg-amber-500 text-slate-950 font-bold px-2 py-0.5 rounded-full font-mono text-[8px] uppercase">
-                                {form.frequency}
-                              </span>
-                              <h4 className="font-bold text-slate-950 text-sm">{form.title}</h4>
-                            </div>
-                            <p className="text-slate-400 mt-1">Due date: <span className="text-red-650 font-bold">{form.dueDate}</span> at {form.dueTime} | Section structures: Cooler, Freezer, Bar</p>
+                        <>
+                          <div className="flex items-center justify-between text-xs font-mono text-slate-500 bg-slate-50 p-2.5 px-3 rounded-xl border border-slate-200">
+                            <span>Showing <strong>{matchingForms.length}</strong> official inventory checksheets for this store</span>
+                            <span className="text-[10px] text-amber-700 font-bold bg-amber-100/80 px-2 py-0.5 rounded-full">Synced with OneDrive 2026</span>
                           </div>
 
-                          <button
-                            disabled={!isUserLinked}
-                            onClick={() => {
-                              setSelectedForm(form);
-                              setCurrentScreen('counting');
-                            }}
-                            className={`px-4 py-2 border rounded-xl text-xs font-bold uppercase transition ${
-                              isUserLinked 
-                                ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-600 cursor-pointer' 
-                                : 'bg-slate-100 text-slate-400 border-slate-200/70 cursor-not-allowed'
-                            }`}
-                          >
-                            Launch counting counting
-                          </button>
-                        </div>
-                      );
-                    })}
+                          <div className="divide-y space-y-3">
+                            {matchingForms.map((form) => {
+                              const isUserLinked = simUser.assignedForms.includes(form.id) || simUser.role === 'Super Admin' || simUser.role === 'Admin' || form.id.startsWith('form-');
+                              const totalItemsInForm = form.sections.reduce((acc, s) => acc + s.itemIds.length, 0);
 
-                    {formsList.filter(f => f.locationCode === selectedLocCode || f.locationCode === 'STORE' || f.locationCode === 'ALL' || !f.locationCode).length === 0 && (
-                      <div className="py-8 text-center text-slate-400">
-                        <FileSpreadsheet className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                        <p className="font-bold text-sm text-slate-600">No scheduled checksheets found for this location</p>
-                        <p className="text-xs text-slate-400 mt-1">Upload an Excel (.xlsx) sheet to get started right away</p>
-                        <button
-                          type="button"
-                          onClick={() => setShowExcelImportModal(true)}
-                          className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileSpreadsheet className="w-4 h-4" /> Upload Store Sheet
-                        </button>
-                      </div>
-                    )}
+                              return (
+                                <div key={form.id} className="py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                  <div className="text-xs space-y-1">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="bg-amber-500 text-slate-950 font-bold px-2 py-0.5 rounded-full font-mono text-[8px] uppercase">
+                                        {form.frequency}
+                                      </span>
+                                      <h4 className="font-bold text-slate-950 text-sm">{form.title}</h4>
+                                      {form.excelFileName && (
+                                        <a
+                                          href={`/excel-forms/${encodeURIComponent(form.excelFileName)}`}
+                                          download={form.excelFileName}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full transition shadow-2xs"
+                                          title="Download original store Excel spreadsheet"
+                                        >
+                                          <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                          <span>.xlsx</span>
+                                        </a>
+                                      )}
+                                    </div>
+                                    <p className="text-slate-400">
+                                      Due: <span className="text-red-650 font-bold">{form.dueDate}</span> at {form.dueTime} | <strong>{totalItemsInForm} items</strong> across {form.sections.length} sections ({form.sections.map(s => s.name).slice(0, 3).join(', ')}{form.sections.length > 3 ? '...' : ''})
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    disabled={!isUserLinked}
+                                    onClick={() => {
+                                      setSelectedForm(form);
+                                      setCurrentScreen('counting');
+                                    }}
+                                    className={`px-4 py-2 border rounded-xl text-xs font-bold uppercase transition shrink-0 ${
+                                      isUserLinked 
+                                        ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-600 cursor-pointer shadow-xs active:scale-95' 
+                                        : 'bg-slate-100 text-slate-400 border-slate-200/70 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    Launch Count
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

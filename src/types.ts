@@ -110,6 +110,9 @@ export interface InventoryForm {
   dueTime: string; // HH:MM
   sections: FormSection[];
   active: boolean;
+  excelFileName?: string;
+  status?: string;
+  estimatedMinutes?: number;
 }
 
 export interface SubmissionItem {
