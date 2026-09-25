@@ -82,6 +82,27 @@ The application will be live at `http://localhost:3000`.
 
 ---
 
+## 🐙 GitHub Integration
+This project comes with a fully initialized Git repository on branch `main` with all files committed.
+
+### Option 1: In-App One-Click Push
+Open the app in your browser and click the **Push to GitHub** button in the top navigation bar or under **Settings**. Enter your target GitHub repository URL and Personal Access Token (with `repo` scope) to push immediately.
+
+### Option 2: Local Terminal / CLI
+If working locally with the downloaded project archive:
+```bash
+# Add your GitHub remote repository
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+
+# Ensure main branch is active
+git branch -M main
+
+# Push to your repository
+git push -u origin main
+```
+
+---
+
 ## 🏢 Attribution & Branding
 - **App Name**: The Commissary
 - **Operations & Systems Design**: GoyoneByDesign
