@@ -16,10 +16,12 @@ import ReportViewer from './components/ReportViewer';
 import AdminPanels from './components/AdminPanels';
 import InventoryFormCounting from './components/InventoryFormCounting';
 import AppLogo from './components/AppLogo';
+import { GitHubPushModal } from './components/GitHubPushModal';
 
 export default function App() {
   // Dual-Platform Workspace view
   const [platformView, setPlatformView] = useState<'app_simulator' | 'android_code'>('app_simulator');
+  const [showGitHubModal, setShowGitHubModal] = useState(false);
 
   // Interactive Web Client Router
   const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'forgot' | 'dashboard' | 'locations' | 'forms' | 'counting' | 'voice' | 'confirmation' | 'reports' | 'settings' | 'admin'>('splash');
@@ -109,6 +111,15 @@ export default function App() {
 
           {/* Action buttons & Platform Toggle */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowGitHubModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-slate-700 hover:border-amber-400/50"
+              title="Push project repository directly to GitHub"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Push to GitHub</span>
+            </button>
+
             <a
               href="/the-commissary-project.zip"
               download="the-commissary-project.zip"
@@ -905,6 +916,31 @@ export default function App() {
                       <span>Download the-commissary-project.zip</span>
                     </a>
                   </div>
+
+                  {/* Git Repository & GitHub Push Section */}
+                  <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl leading-relaxed text-slate-100 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FolderGit2 className="w-5 h-5 text-amber-400" />
+                        <h4 className="font-bold text-white">Git Repository & GitHub Push</h4>
+                      </div>
+                      <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full">
+                        MAIN BRANCH READY
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      The local Git repository has been initialized with all 23 source files committed. Push directly to your GitHub account or view CLI instructions.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        onClick={() => setShowGitHubModal(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold transition shadow-sm font-mono"
+                      >
+                        <FolderGit2 className="w-4 h-4" />
+                        <span>Push to GitHub Repository</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -979,6 +1015,12 @@ export default function App() {
           <p className="text-[10px] text-slate-600">Enterprise Restaurant Warehouse Inventory, voice parsing NLP engines, and purchasing routers.</p>
         </div>
       </footer>
+
+      {/* GitHub Repository Push Modal */}
+      <GitHubPushModal 
+        isOpen={showGitHubModal} 
+        onClose={() => setShowGitHubModal(false)} 
+      />
 
     </div>
   );

@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
+import { execSync } from "node:child_process";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -46,6 +47,154 @@ app.get(["/api/download-zip", "/the-commissary-project.zip"], (_req, res) => {
     return res.sendFile(targetZip);
   }
   return res.status(404).json({ error: "ZIP package is currently being generated. Please retry in a few seconds." });
+});
+
+// Git status inspection endpoint
+app.get("/api/github/status", (_req, res) => {
+  try {
+    const isGit = fs.existsSync(path.join(process.cwd(), ".git"));
+    if (!isGit) {
+      return res.json({ initialized: false });
+    }
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf-8" }).trim();
+    const commitHash = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+    const commitMsg = execSync("git log -1 --pretty=%B", { encoding: "utf-8" }).trim();
+    let remoteUrl = "";
+    try {
+      remoteUrl = execSync("git remote get-url origin", { encoding: "utf-8" }).trim();
+      remoteUrl = remoteUrl.replace(/\/\/[^@]+@/, "//");
+    } catch {}
+    const status = execSync("git status --porcelain", { encoding: "utf-8" }).trim();
+    return res.json({
+      initialized: true,
+      branch,
+      commitHash,
+      commitMsg,
+      remoteUrl,
+      clean: status.length === 0,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Git push directly to user's GitHub repository
+app.post("/api/github/push", (req, res) => {
+  let { repoUrl, token, branch = "main", commitMessage, force = false } = req.body;
+
+  if (!repoUrl || typeof repoUrl !== "string") {
+    return res.status(400).json({ error: "GitHub repository URL or username/repo is required." });
+  }
+
+  // Normalize repository URL
+  repoUrl = repoUrl.trim();
+  let owner = "";
+  let repo = "";
+
+  if (repoUrl.startsWith("https://github.com/")) {
+    const parts = repoUrl.replace("https://github.com/", "").replace(/\.git$/, "").split("/");
+    owner = parts[0];
+    repo = parts[1];
+  } else if (repoUrl.startsWith("git@github.com:")) {
+    const parts = repoUrl.replace("git@github.com:", "").replace(/\.git$/, "").split("/");
+    owner = parts[0];
+    repo = parts[1];
+  } else if (repoUrl.includes("/")) {
+    const parts = repoUrl.replace(/\.git$/, "").split("/");
+    owner = parts[0];
+    repo = parts[1];
+  }
+
+  if (!owner || !repo) {
+    return res.status(400).json({ 
+      error: "Invalid GitHub repository format. Please use 'https://github.com/username/repo' or 'username/repo'." 
+    });
+  }
+
+  const cleanRepoUrl = `https://github.com/${owner}/${repo}`;
+  const cleanGitUrl = `https://github.com/${owner}/${repo}.git`;
+  
+  const trimmedToken = token ? token.trim() : "";
+  const authGitUrl = trimmedToken 
+    ? `https://${encodeURIComponent(trimmedToken)}@github.com/${owner}/${repo}.git`
+    : cleanGitUrl;
+
+  try {
+    // 1. Ensure git repo initialized
+    if (!fs.existsSync(path.join(process.cwd(), ".git"))) {
+      execSync("git init -b main", { encoding: "utf-8" });
+      execSync('git config user.name "Michael Goyone"', { encoding: "utf-8" });
+      execSync('git config user.email "michael.goyone@gmail.com"', { encoding: "utf-8" });
+    }
+
+    // 2. Stage any changes and commit if needed
+    execSync("git add -A", { encoding: "utf-8" });
+    const hasChanges = execSync("git status --porcelain", { encoding: "utf-8" }).trim().length > 0;
+    if (hasChanges) {
+      const msg = commitMessage ? commitMessage.replace(/"/g, '\\"') : "Update from The Commissary workspace";
+      execSync(`git commit -m "${msg}"`, { encoding: "utf-8" });
+    }
+
+    // 3. Ensure branch name
+    const targetBranch = branch.trim() || "main";
+    try {
+      execSync(`git branch -M ${targetBranch}`, { encoding: "utf-8" });
+    } catch {}
+
+    // 4. Configure remote origin with auth
+    try {
+      execSync("git remote remove origin", { encoding: "utf-8", stdio: "ignore" });
+    } catch {}
+    execSync(`git remote add origin "${authGitUrl}"`, { encoding: "utf-8" });
+
+    // 5. Push
+    const forceFlag = force ? " --force" : "";
+    const pushOutput = execSync(`git push -u origin ${targetBranch}${forceFlag}`, {
+      encoding: "utf-8",
+      timeout: 30000,
+    });
+
+    // 6. SANITIZE remote immediately so token is not stored in plain text
+    try {
+      execSync(`git remote set-url origin "${cleanGitUrl}"`, { encoding: "utf-8" });
+    } catch {}
+
+    const commitHash = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+
+    return res.json({
+      success: true,
+      message: `Successfully pushed branch '${targetBranch}' to GitHub!`,
+      repoUrl: cleanRepoUrl,
+      branch: targetBranch,
+      commitHash,
+      details: pushOutput.trim(),
+    });
+  } catch (error: any) {
+    // Make sure we sanitize remote origin even on failure
+    try {
+      execSync(`git remote set-url origin "${cleanGitUrl}"`, { encoding: "utf-8", stdio: "ignore" });
+    } catch {}
+
+    let rawErr = error?.stderr?.toString() || error?.message || "Unknown push error";
+    if (trimmedToken) {
+      rawErr = rawErr.split(trimmedToken).join("[REDACTED_TOKEN]");
+    }
+
+    let helpfulHint = "";
+    if (rawErr.includes("Authentication failed") || rawErr.includes("Invalid username or password") || rawErr.includes("403") || rawErr.includes("could not read Username")) {
+      helpfulHint = "Authentication required. Please enter your GitHub Personal Access Token (PAT) with 'repo' scope. GitHub no longer allows password authentication.";
+    } else if (rawErr.includes("Repository not found") || rawErr.includes("404")) {
+      helpfulHint = `Repository '${owner}/${repo}' does not exist on GitHub yet. Please create an empty repository on GitHub first at https://github.com/new and then click Push again!`;
+    } else if (rawErr.includes("non-fast-forward") || rawErr.includes("fetch first") || rawErr.includes("[rejected]")) {
+      helpfulHint = "The remote repository has existing commits. Toggle 'Force Push' to overwrite, or specify an empty repository.";
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: rawErr,
+      hint: helpfulHint,
+    });
+  }
 });
 
 // REST API for Invoice/Receipt OCR and evaluation
