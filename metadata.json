@@ -1,0 +1,11 @@
+{
+  "name": "The Commissary",
+  "description": "Multi-location restaurant inventory management and ordering app. Track inventory manually or by voice, calculate par levels and suggested orders, and view exportable reports.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
