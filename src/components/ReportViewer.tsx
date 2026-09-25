@@ -4,7 +4,7 @@ import { sampleSubmissions, sampleItems, defaultLocations } from '../data/sample
 import { 
   Table, Download, FileSpreadsheet, FileText, BarChart3, AlertTriangle, 
   TrendingUp, Compass, Layers, CheckCircle, Scale, Printer, Clock, Coins, 
-  Filter, ShieldCheck, ChevronRight, ArrowUpDown, RefreshCw, ShoppingCart,
+  Filter, ShieldCheck, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, ShoppingCart,
   Receipt, PlusCircle, Edit2, Trash2, Plus, Trash, Check, X, ShieldAlert, Lock
 } from 'lucide-react';
 
@@ -28,6 +28,32 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
   const [filterPriceMin, setFilterPriceMin] = useState<number>(0);
   const [filterPriceMax, setFilterPriceMax] = useState<number>(200);
 
+  // Sorting state for Printable Inventory Specifications table
+  type CatalogSortField = 'code' | 'name' | 'category' | 'vendor' | 'measureType' | 'par' | 'cost';
+  type SortDirection = 'asc' | 'desc';
+  const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>('name');
+  const [catalogSortDirection, setCatalogSortDirection] = useState<SortDirection>('asc');
+
+  const handleCatalogSort = (field: CatalogSortField) => {
+    if (catalogSortField === field) {
+      setCatalogSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setCatalogSortField(field);
+      setCatalogSortDirection('asc');
+    }
+  };
+
+  const renderSortIndicator = (field: CatalogSortField) => {
+    if (catalogSortField === field) {
+      return catalogSortDirection === 'asc' ? (
+        <ArrowUp className="w-3 h-3 text-amber-600 shrink-0 inline-block transition-transform" />
+      ) : (
+        <ArrowDown className="w-3 h-3 text-amber-600 shrink-0 inline-block transition-transform" />
+      );
+    }
+    return <ArrowUpDown className="w-2.5 h-2.5 text-slate-400 opacity-40 group-hover:opacity-80 shrink-0 inline-block" />;
+  };
+
   // 2. Store Comparison selections (Up to 10 Stores)
   const [comparedStores, setComparedStores] = useState<string[]>(['AR', 'CM', 'AS', 'BK']);
 
@@ -35,17 +61,46 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
   const uniqueVendors = Array.from(new Set(sampleItems.map(item => item.vendorName)));
   const uniqueCategories = Array.from(new Set(sampleItems.map(item => item.category)));
 
-  // Filter items matching selected inputs
-  const filteredCatalogItems = sampleItems.filter(item => {
-    if (filterVendor && item.vendorName !== filterVendor) return false;
-    if (filterCategory && item.category !== filterCategory) return false;
-    
-    // Price range calculation
-    const priceRange = item.recentPurchasePrice || item.createdPrice || 24.50;
-    if (priceRange < filterPriceMin || priceRange > filterPriceMax) return false;
-    
-    return true;
-  });
+  // Filter and sort items matching selected inputs
+  const filteredCatalogItems = sampleItems
+    .filter(item => {
+      if (filterVendor && item.vendorName !== filterVendor) return false;
+      if (filterCategory && item.category !== filterCategory) return false;
+      
+      // Price range calculation
+      const priceRange = item.recentPurchasePrice || item.createdPrice || 24.50;
+      if (priceRange < filterPriceMin || priceRange > filterPriceMax) return false;
+      
+      return true;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      if (catalogSortField === 'code') {
+        const codeA = (a.itemCode || a.id || '').toLowerCase();
+        const codeB = (b.itemCode || b.id || '').toLowerCase();
+        comparison = codeA.localeCompare(codeB, undefined, { numeric: true });
+      } else if (catalogSortField === 'name') {
+        comparison = (a.name || '').localeCompare(b.name || '');
+      } else if (catalogSortField === 'category') {
+        comparison = (a.category || '').localeCompare(b.category || '');
+      } else if (catalogSortField === 'vendor') {
+        comparison = (a.vendorName || '').localeCompare(b.vendorName || '');
+      } else if (catalogSortField === 'measureType') {
+        const typeA = a.measurementType === 'weight' ? `weight ${a.weightOrVolumeValue} ${a.weightUnit || 'lbs'}` : a.measurementType === 'liquid' ? `liquid ${a.weightOrVolumeValue} ${a.liquidUnit || 'gal'}` : `standard ${a.unitOfMeasurement || ''}`;
+        const typeB = b.measurementType === 'weight' ? `weight ${b.weightOrVolumeValue} ${b.weightUnit || 'lbs'}` : b.measurementType === 'liquid' ? `liquid ${b.weightOrVolumeValue} ${b.liquidUnit || 'gal'}` : `standard ${b.unitOfMeasurement || ''}`;
+        comparison = typeA.localeCompare(typeB);
+      } else if (catalogSortField === 'par') {
+        const parA = Number(a.defaultParLevel || 0);
+        const parB = Number(b.defaultParLevel || 0);
+        comparison = parA - parB;
+      } else if (catalogSortField === 'cost') {
+        const costA = Number(a.recentPurchasePrice || a.createdPrice || 24.50);
+        const costB = Number(b.recentPurchasePrice || b.createdPrice || 24.50);
+        comparison = costA - costB;
+      }
+
+      return catalogSortDirection === 'asc' ? comparison : -comparison;
+    });
 
   const submissions = sampleSubmissions.filter(s => s.locationCode === selectedLocation);
 
@@ -1127,13 +1182,76 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-mono uppercase text-[9.5px] font-black">
-                    <th className="py-3 px-4">Code</th>
-                    <th className="py-3 px-3">Item Title</th>
-                    <th className="py-3 px-3">Category</th>
-                    <th className="py-3 px-3">Vendor</th>
-                    <th className="py-3 px-3">Measure Type</th>
-                    <th className="py-3 px-3 text-center">Standard Par</th>
-                    <th className="py-3 px-4 text-right">Est. Cost</th>
+                    <th 
+                      onClick={() => handleCatalogSort('code')}
+                      className="py-3 px-4 cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Code (touch again to reverse)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Code</span>
+                        {renderSortIndicator('code')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('name')}
+                      className="py-3 px-3 cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort alphabetically by Item Title (touch again to reverse)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Item Title</span>
+                        {renderSortIndicator('name')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('category')}
+                      className="py-3 px-3 cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Category (touch again to reverse)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Category</span>
+                        {renderSortIndicator('category')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('vendor')}
+                      className="py-3 px-3 cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Vendor (touch again to reverse)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Vendor</span>
+                        {renderSortIndicator('vendor')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('measureType')}
+                      className="py-3 px-3 cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Measure Type (touch again to reverse)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Measure Type</span>
+                        {renderSortIndicator('measureType')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('par')}
+                      className="py-3 px-3 text-center cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Standard Par (touch again to reverse)"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Standard Par</span>
+                        {renderSortIndicator('par')}
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleCatalogSort('cost')}
+                      className="py-3 px-4 text-right cursor-pointer select-none group hover:bg-slate-100 hover:text-slate-900 transition"
+                      title="Sort by Estimated Cost (touch again to reverse)"
+                    >
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Est. Cost</span>
+                        {renderSortIndicator('cost')}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
