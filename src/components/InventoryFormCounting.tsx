@@ -25,8 +25,8 @@ export default function InventoryFormCounting({
   onSubmitSuccess,
   activeVoiceParsedCmd
 }: InventoryFormCountingProps) {
-  // View mode: 'sheet' (Store Excel Grid) or 'cards' (Touch Cards)
-  const [viewMode, setViewMode] = useState<'sheet' | 'cards'>('sheet');
+  // View mode: 'sheet' (Adaptive Mobile List on phone / Grid on tablet), 'cards' (Touch Cards), or 'table' (Raw Grid Table)
+  const [viewMode, setViewMode] = useState<'sheet' | 'cards' | 'table'>('sheet');
 
   // Active section or 'ALL'
   const [activeSection, setActiveSection] = useState<string>(form.sections[0]?.name || 'BI-WEEKLY ORDER');
@@ -730,31 +730,43 @@ export default function InventoryFormCounting({
           {/* Quick Actions (Print, Export to Excel, View Mode Toggle) */}
           <div className="flex flex-wrap items-center gap-2">
             
-            {/* View Mode Toggle: Store Sheet vs Touch Cards */}
+            {/* View Mode Toggle: Adaptive Store Sheet vs Cards vs Table */}
             <div className="bg-slate-900/90 border border-slate-700/80 p-1 rounded-xl flex items-center gap-1 shadow-inner">
               <button
                 onClick={() => setViewMode('sheet')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                   viewMode === 'sheet' 
                     ? 'bg-amber-500 text-slate-950 shadow-sm' 
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
-                title="Exact Excel Store Grid Format"
+                title="Adaptive Store Sheet (Zero-Scroll Mobile List on Phone, Sheet Grid on Tablet/Desktop)"
               >
                 <TableIcon className="w-3.5 h-3.5" />
-                <span>Store Sheet Grid</span>
+                <span className="hidden sm:inline">Store Sheet</span>
+                <span className="sm:hidden">Count List</span>
               </button>
               <button
                 onClick={() => setViewMode('cards')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                   viewMode === 'cards' 
                     ? 'bg-amber-500 text-slate-950 shadow-sm' 
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
-                title="Product Cards View"
+                title="Product Cards View with Photos"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
                 <span>Card View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`hidden sm:flex px-2.5 py-1.5 rounded-lg text-xs font-bold items-center gap-1 transition cursor-pointer ${
+                  viewMode === 'table' 
+                    ? 'bg-amber-500 text-slate-950 shadow-sm' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Spreadsheet Table View"
+              >
+                <span>Grid Table</span>
               </button>
             </div>
 
@@ -781,7 +793,7 @@ export default function InventoryFormCounting({
         </div>
 
         {/* Store Metadata Inputs: CASHIER/MOD, ENTERING IN COMPUTER, INV TAKEN BY, DATE, TIME OF INV / SHIFT */}
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs sm:text-sm">
           
           {/* 1. Cashier / Manager On Duty (MOD) */}
           <div className="bg-slate-900/60 border border-slate-800 p-2.5 rounded-xl space-y-1">
@@ -792,7 +804,7 @@ export default function InventoryFormCounting({
               type="text"
               value={managerOnDuty}
               onChange={(e) => setManagerOnDuty(e.target.value)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500"
               placeholder="Cashier / MOD"
             />
           </div>
@@ -806,7 +818,7 @@ export default function InventoryFormCounting({
               type="text"
               value={employeeEntering}
               onChange={(e) => setEmployeeEntering(e.target.value)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500"
               placeholder="Computer entry"
             />
           </div>
@@ -820,7 +832,7 @@ export default function InventoryFormCounting({
               type="text"
               value={invTakenBy}
               onChange={(e) => setInvTakenBy(e.target.value)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500"
               placeholder="Physical count taker"
             />
           </div>
@@ -834,7 +846,7 @@ export default function InventoryFormCounting({
               type="text"
               value={dateStr}
               onChange={(e) => setDateStr(e.target.value)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2 py-1 rounded-lg text-xs font-semibold font-mono focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950/70 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold font-mono focus:outline-none focus:border-amber-500"
               placeholder="MM/DD/YYYY"
             />
           </div>
@@ -848,7 +860,7 @@ export default function InventoryFormCounting({
             <select
               value={shiftSlot}
               onChange={(e) => setShiftSlot(e.target.value as any)}
-              className="w-full bg-slate-950/70 border border-slate-700 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-amber-500 cursor-pointer"
+              className="w-full bg-slate-950/70 border border-slate-700 text-amber-300 font-bold px-2.5 py-1.5 rounded-lg text-xs sm:text-sm focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="Breakfast">Breakfast (Open – 10:59 am)</option>
               <option value="Lunch">Lunch (11:00 am – 3:59 pm)</option>
@@ -985,11 +997,263 @@ export default function InventoryFormCounting({
       </div>
 
       {/* 4. MAIN VIEW: SPREADSHEET STORE GRID vs CARDS */}
-      {viewMode === 'sheet' ? (
-        /* EXACT SPREADSHEET TABLE GRID REPLICA */
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+      {viewMode === 'sheet' || viewMode === 'table' ? (
+        <div className="space-y-4">
+          
+          {/* A. MOBILE-FIRST INVENTORY COUNT SHEET (Active on phones < md with ZERO horizontal scroll) */}
+          {viewMode === 'sheet' && (
+            <div className="block md:hidden space-y-3">
+              {displayedItems.length === 0 ? (
+                <div className="py-12 px-4 text-center bg-white border border-dashed rounded-2xl text-slate-400 font-mono text-xs">
+                  No products found matching "{searchQuery}" in {activeSection}
+                </div>
+              ) : (
+                displayedItems.map((item, index) => {
+                  const isKeg = item.category === 'Beer Draft' || item.unit.includes('KEG');
+                  const isBottle = item.category === 'Beer Bottles';
+                  const isCO2 = item.itemId === 'co2-1' || item.category === 'Gas Systems';
+                  const isEmpties = item.itemId === 'keg-10';
+                  const wlkInInvalid = isBottle && (item.wlkInCount || 0) > 0 && (item.wlkInCount || 0) % 6 !== 0;
+
+                  return (
+                    <div
+                      key={item.itemId}
+                      className={`bg-white border rounded-2xl p-4 shadow-xs transition-all space-y-3 ${
+                        item.isChecked ? 'border-emerald-400 bg-emerald-50/20' : 'border-slate-200'
+                      }`}
+                    >
+                      {/* Top Header: Row #, Item Name, Checkbox */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-start gap-2 flex-1">
+                          <span className="font-mono text-xs font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg shrink-0 mt-0.5">
+                            #{index + 1}
+                          </span>
+                          <div>
+                            <h4 className="font-black text-slate-900 text-base leading-snug">
+                              {item.requiresDating && <span className="text-rose-600 font-black text-lg mr-1">*</span>}
+                              {item.name}
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* Interactive Count ✔ Checkmark Button (large touch target 44x44) */}
+                        <button
+                          type="button"
+                          onClick={() => toggleItemChecked(item.itemId)}
+                          className={`w-11 h-11 rounded-xl border-2 flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer ${
+                            item.isChecked
+                              ? 'bg-emerald-500 border-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-50 border-slate-300 text-slate-300 hover:border-slate-400'
+                          }`}
+                          title="Mark Counted"
+                        >
+                          <Check className="w-5 h-5 stroke-3" />
+                        </button>
+                      </div>
+
+                      {/* Specification Badges (Size, Pack, Code, Category, Unit) */}
+                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
+                          {item.category}
+                        </span>
+                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md font-bold">
+                          Unit: {item.unit}
+                        </span>
+                        {item.size && (
+                          <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md border border-amber-300">
+                            Size: {item.size}
+                          </span>
+                        )}
+                        {item.casePackDetails && (
+                          <span className="bg-slate-100 text-slate-900 font-bold px-2 py-0.5 rounded-md border border-slate-300">
+                            Pack: {item.casePackDetails}
+                          </span>
+                        )}
+                        {item.itemCode && (
+                          <span className="bg-slate-900 text-amber-300 font-bold px-2 py-0.5 rounded-md">
+                            Code: {item.itemCode}
+                          </span>
+                        )}
+                        {item.requiresDating && (
+                          <span className="bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-md border border-rose-200">
+                            * Must Date at Store Level
+                          </span>
+                        )}
+                        {isBottle && (
+                          <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md border border-amber-200">
+                            6-Pack Rule
+                          </span>
+                        )}
+                        {isEmpties && (
+                          <span className="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-md border border-red-200 animate-pulse">
+                            Return on Delivery
+                          </span>
+                        )}
+                        {wlkInInvalid && (
+                          <span className="bg-amber-500 text-slate-950 font-bold px-2 py-0.5 rounded-md">
+                            ⚠️ Walk-in sets of 6 only!
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Par & Suggested Order info bar */}
+                      <div className="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-center font-mono">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-bold uppercase block">Standard Par</span>
+                          <span className="text-base font-black text-slate-900 mt-0.5 block">{item.parLevel}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-amber-800 font-bold uppercase block">Sug Order</span>
+                          <span className="text-base font-black text-amber-700 mt-0.5 block">
+                            {item.suggestedOrder > 0 ? `+${item.suggestedOrder}` : '0'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-bold uppercase block">Final Order</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.finalOrder === 0 ? '' : item.finalOrder}
+                            onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
+                            placeholder="0"
+                            className="w-full text-center font-mono font-bold text-sm bg-white border border-slate-300 text-slate-900 py-1 rounded-lg focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Physical Count Inputs (GREEN CELLS HIGHLIGHTED) */}
+                      {isBarBeerSheet ? (
+                        /* Draft & Bottled Beer: Walk-In + Bar Inputs */
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-mono font-black text-emerald-950 uppercase flex items-center justify-between">
+                              <span>WLK-IN 🟢</span>
+                              {isBottle && <span className="text-[9px] text-amber-700 font-bold">(sets of 6)</span>}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step={isKeg ? "0.5" : "1"}
+                              value={item.wlkInCount === 0 ? '' : item.wlkInCount}
+                              onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              className={`w-full text-center font-mono font-black text-lg py-2.5 rounded-xl border-2 transition ${
+                                wlkInInvalid
+                                  ? 'bg-amber-100 text-amber-950 border-amber-400 focus:border-amber-600'
+                                  : 'bg-emerald-100 text-emerald-950 border-emerald-400 focus:bg-white focus:border-emerald-600'
+                              }`}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-mono font-black text-emerald-950 uppercase">
+                              BAR / C-O 🟢
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step={isKeg ? "0.5" : "1"}
+                              value={item.barCount === 0 ? '' : item.barCount}
+                              onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              className="w-full text-center font-mono font-black text-lg py-2.5 rounded-xl border-2 bg-emerald-100 text-emerald-950 border-emerald-400 focus:bg-white focus:border-emerald-600 transition"
+                            />
+                          </div>
+                        </div>
+                      ) : isCO2 ? (
+                        /* CO2 Gauge */
+                        <div className="bg-emerald-50 border border-emerald-300 p-2.5 rounded-xl flex items-center justify-between">
+                          <span className="text-xs font-mono font-bold text-emerald-950">CO2 TANK PRESSURE:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.co2GaugePct ?? 75}
+                              onChange={(e) => handleCo2GaugeChange(item.itemId, e.target.value)}
+                              className="w-20 text-center font-mono font-black text-base bg-emerald-100 text-emerald-950 border-2 border-emerald-400 py-1.5 rounded-lg"
+                            />
+                            <span className="font-bold text-emerald-900 font-mono">%</span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Standard Physical Inventory On-Hand Box (INV 🟢) */
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-mono font-black text-emerald-950 uppercase block">
+                              ON-HAND INVENTORY (INV 🟢)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.currentCount === 0 ? '' : item.currentCount}
+                              onChange={(e) => handleCountChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              className="w-full text-center font-mono font-black text-xl bg-emerald-100 text-emerald-950 border-2 border-emerald-500 py-2.5 rounded-xl focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-400 transition shadow-xs"
+                            />
+                          </div>
+
+                          {/* Received button */}
+                          {!isBarBeerSheet && (
+                            <div className="shrink-0 space-y-1 text-center">
+                              <label className="text-[10px] font-mono font-bold text-slate-500 uppercase block">
+                                REC ✔
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => toggleItemReceived(item.itemId)}
+                                className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                                  item.isReceived
+                                    ? 'bg-blue-600 border-blue-700 text-white shadow-xs'
+                                    : 'bg-white border-slate-300 text-slate-300 hover:border-slate-400'
+                                }`}
+                                title="Mark received on delivery"
+                              >
+                                <Check className="w-5 h-5 stroke-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Back order for catering */}
+                          {isCateringSheet && (
+                            <div className="shrink-0 space-y-1 text-center">
+                              <label className="text-[10px] font-mono font-bold text-amber-700 uppercase block">
+                                B/O
+                              </label>
+                              <div className="w-12 h-12 flex items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  checked={!!item.isBackOrder}
+                                  onChange={() => toggleBackOrder(item.itemId)}
+                                  className="w-5 h-5 accent-amber-500 rounded cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* B. TABLET & DESKTOP STORE SPREADSHEET TABLE GRID (Visible on >= md screens, or when viewMode === 'table') */}
+          <div className={`${viewMode === 'table' ? 'block' : 'hidden md:block'} bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden`}>
+            {viewMode === 'table' && (
+              <div className="md:hidden bg-amber-50 border-b border-amber-200 p-2 px-3 text-[11px] font-mono text-amber-900 flex items-center justify-between">
+                <span>↔️ Swipe horizontally to view all columns</span>
+                <button 
+                  onClick={() => setViewMode('sheet')}
+                  className="px-2 py-0.5 bg-amber-500 text-slate-950 font-bold rounded cursor-pointer"
+                >
+                  Switch to Mobile List
+                </button>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 font-mono text-[10px] text-slate-600 uppercase tracking-wider">
                   <th className="py-2.5 px-3 text-center w-12 font-bold">#</th>
@@ -1298,92 +1562,147 @@ export default function InventoryFormCounting({
             </div>
           </div>
         </div>
+        </div>
       ) : (
         /* ALTERNATIVE PRODUCT CARDS VIEW (For touch / mobile) */
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {displayedItems.length === 0 ? (
-            <div className="col-span-full text-center py-12 bg-white border border-dashed rounded-2xl text-slate-400">
+            <div className="col-span-full text-center py-12 bg-white border border-dashed rounded-2xl text-slate-400 font-mono text-xs">
               No matching products in "{activeSection}"
             </div>
           ) : (
-            displayedItems.map(item => (
-              <div 
-                key={item.itemId}
-                className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition space-y-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                    <img
-                      src={item.photoUrl || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=120&q=80'}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="overflow-hidden flex-1">
-                    <h4 className="font-bold text-slate-900 text-xs truncate">{item.name}</h4>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase font-bold">
-                      Unit: {item.unit} {item.size ? `• Size: ${item.size}` : ''} {item.casePackDetails ? `• Pack: ${item.casePackDetails}` : ''} • {item.category}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => toggleItemChecked(item.itemId)}
-                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
-                      item.isChecked 
-                        ? 'bg-emerald-500 border-emerald-600 text-white' 
-                        : 'bg-slate-50 border-slate-200 text-slate-300 hover:border-slate-300'
-                    }`}
-                  >
-                    <Check className="w-4 h-4 stroke-3" />
-                  </button>
-                </div>
+            displayedItems.map(item => {
+              const isKeg = item.category === 'Beer Draft' || item.unit.includes('KEG');
+              const isBottle = item.category === 'Beer Bottles';
+              const wlkInInvalid = isBottle && (item.wlkInCount || 0) > 0 && (item.wlkInCount || 0) % 6 !== 0;
 
-                {/* Par and Sug Order stats */}
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
-                  <div className="p-1.5 bg-slate-50 border border-slate-100 rounded-lg">
-                    <span className="block text-[8px] text-slate-400 font-bold uppercase">Par</span>
-                    <span className="font-black text-slate-800 text-xs mt-0.5">{item.parLevel}</span>
+              return (
+                <div 
+                  key={item.itemId}
+                  className={`bg-white border rounded-2xl p-4 shadow-xs transition-all space-y-3 ${
+                    item.isChecked ? 'border-emerald-400 bg-emerald-50/20' : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200">
+                      <img
+                        src={item.photoUrl || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=120&q=80'}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="overflow-hidden flex-1">
+                      <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                        {item.requiresDating && <span className="text-rose-600 font-black mr-1">*</span>}
+                        {item.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 font-mono mt-1 uppercase font-semibold flex flex-wrap gap-1">
+                        <span>{item.unit}</span>
+                        {item.size && <span className="text-amber-700 font-bold">• {item.size}</span>}
+                        {item.casePackDetails && <span className="text-slate-700 font-bold">• {item.casePackDetails}</span>}
+                        <span>• {item.category}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => toggleItemChecked(item.itemId)}
+                      className={`w-10 h-10 rounded-xl border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                        item.isChecked 
+                          ? 'bg-emerald-500 border-emerald-600 text-white shadow-xs' 
+                          : 'bg-slate-50 border-slate-200 text-slate-300 hover:border-slate-300'
+                      }`}
+                      title="Mark Counted"
+                    >
+                      <Check className="w-5 h-5 stroke-3" />
+                    </button>
                   </div>
-                  <div className="p-1.5 bg-amber-50 border border-amber-200/60 rounded-lg">
-                    <span className="block text-[8px] text-amber-700 font-bold uppercase">Sug Order</span>
-                    <span className="font-black text-amber-600 text-xs mt-0.5">+{item.suggestedOrder}</span>
-                  </div>
-                  <div className="p-1.5 bg-slate-50 border border-slate-100 rounded-lg">
-                    <span className="block text-[8px] text-slate-400 font-bold uppercase">Expected</span>
-                    <span className="font-black text-slate-800 text-xs mt-0.5">{item.total}</span>
-                  </div>
-                </div>
 
-                {/* Green On-Hand Count Cell */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[9px] uppercase font-bold text-emerald-800 font-mono block">
-                      INV (On-Hand) 🟢
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={item.currentCount === 0 ? '' : item.currentCount}
-                      onChange={(e) => handleCountChange(item.itemId, e.target.value)}
-                      className="w-full text-center font-mono font-bold text-sm bg-emerald-100/90 text-emerald-950 border-2 border-emerald-400 p-1.5 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition"
-                    />
+                  {/* Par and Sug Order stats */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono bg-slate-50 border border-slate-100 rounded-xl p-2">
+                    <div>
+                      <span className="block text-[9px] text-slate-400 font-bold uppercase">Par</span>
+                      <span className="font-black text-slate-800 text-sm mt-0.5 block">{item.parLevel}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] text-amber-700 font-bold uppercase">Sug Order</span>
+                      <span className="font-black text-amber-600 text-sm mt-0.5 block">
+                        {item.suggestedOrder > 0 ? `+${item.suggestedOrder}` : '0'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] text-slate-400 font-bold uppercase">Total</span>
+                      <span className="font-black text-slate-800 text-sm mt-0.5 block">{item.total}</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] uppercase font-bold text-slate-400 font-mono block">
-                      Final Order
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={item.finalOrder === 0 ? '' : item.finalOrder}
-                      onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
-                      className="w-full text-center font-mono font-bold text-sm bg-slate-50 border border-slate-200 p-1.5 rounded-xl focus:bg-white focus:outline-none focus:border-amber-500 transition"
-                    />
-                  </div>
+
+                  {/* Physical Count Inputs */}
+                  {isBarBeerSheet ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-black text-emerald-900 font-mono block">
+                          WLK-IN 🟢
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step={isKeg ? "0.5" : "1"}
+                          placeholder="0"
+                          value={item.wlkInCount === 0 ? '' : item.wlkInCount}
+                          onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
+                          className={`w-full text-center font-mono font-black text-base py-2 rounded-xl border-2 transition ${
+                            wlkInInvalid
+                              ? 'bg-amber-100 text-amber-950 border-amber-400'
+                              : 'bg-emerald-100 text-emerald-950 border-emerald-400 focus:bg-white focus:border-emerald-600'
+                          }`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-black text-emerald-900 font-mono block">
+                          BAR/CO 🟢
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step={isKeg ? "0.5" : "1"}
+                          placeholder="0"
+                          value={item.barCount === 0 ? '' : item.barCount}
+                          onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
+                          className="w-full text-center font-mono font-black text-base py-2 rounded-xl border-2 bg-emerald-100 text-emerald-950 border-emerald-400 focus:bg-white focus:border-emerald-600 transition"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-black text-emerald-900 font-mono block">
+                          INV (On-Hand) 🟢
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={item.currentCount === 0 ? '' : item.currentCount}
+                          onChange={(e) => handleCountChange(item.itemId, e.target.value)}
+                          className="w-full text-center font-mono font-black text-lg bg-emerald-100 text-emerald-950 border-2 border-emerald-400 py-2 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-600 transition"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-slate-500 font-mono block">
+                          Final Order
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={item.finalOrder === 0 ? '' : item.finalOrder}
+                          onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
+                          className="w-full text-center font-mono font-bold text-sm bg-slate-50 border border-slate-200 py-2 rounded-xl focus:bg-white focus:outline-none focus:border-amber-500 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

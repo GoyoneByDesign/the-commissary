@@ -1201,7 +1201,7 @@ export default function AdminPanels({
   };
 
   return (
-    <div className="bg-white text-gray-800 border border-gray-100 shadow-md rounded-2xl p-6 font-sans">
+    <div className="bg-white text-gray-800 border border-gray-100 shadow-md rounded-2xl p-3.5 sm:p-5 md:p-6 font-sans w-full max-w-full overflow-hidden">
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5 mb-5">
         <div>
@@ -1213,10 +1213,10 @@ export default function AdminPanels({
         </div>
 
         {/* Sub Navigation */}
-        <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-xl shrink-0">
+        <div className="flex overflow-x-auto no-scrollbar gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-xl sm:flex-wrap shrink-0">
           <button
             onClick={() => setActiveSubTab('users')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 touch-manipulation ${
               activeSubTab === 'users' ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
           >

@@ -883,7 +883,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
   };
 
   return (
-    <div className="bg-white text-gray-800 border border-gray-100 shadow-md rounded-2xl p-6 font-sans">
+    <div className="bg-white text-gray-800 border border-gray-100 shadow-md rounded-2xl p-3 sm:p-5 md:p-6 font-sans w-full max-w-full overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5 mb-5">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
@@ -915,10 +915,10 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
       )}
 
       {/* Primary Report Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-3.5 mb-5">
+      <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-gray-100 pb-3.5 mb-5 sm:flex-wrap">
         <button
           onClick={() => setActiveTab('catalog-print')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'catalog-print' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -930,7 +930,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('store-compare')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'store-compare' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -942,7 +942,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('pmix')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'pmix' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -954,19 +954,19 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('usage-calc')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'usage-calc' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
           }`}
         >
           <TrendingUp className="w-3.5 h-3.5" />
-          USAGE Report (Calculate Waste)
+          USAGE Report (Waste)
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'history' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -978,7 +978,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('suggested')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'suggested' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -990,7 +990,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('variance')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'variance' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -1002,7 +1002,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-2 ${
+          className={`shrink-0 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 sm:gap-2 touch-manipulation ${
             activeTab === 'invoices' 
               ? 'bg-amber-500 text-slate-950 shadow-md active:scale-95' 
               : 'bg-slate-50 text-gray-600 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
@@ -1186,7 +1186,98 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
               </button>
             </div>
 
-            <div className="overflow-x-auto text-[11px]">
+            {/* 📱 Mobile-Only Fast Sort & Order Controller */}
+            <div className="block md:hidden bg-slate-100 p-3 border-b border-slate-200">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black font-mono text-slate-500 uppercase">Sort Spec:</span>
+                <div className="flex items-center gap-1.5 flex-1 justify-end">
+                  <select
+                    value={catalogSortField}
+                    onChange={(e) => setCatalogSortField(e.target.value as CatalogSortField)}
+                    className="bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800"
+                  >
+                    <option value="name">Item Title</option>
+                    <option value="code">Item Code</option>
+                    <option value="category">Category</option>
+                    <option value="vendor">Vendor</option>
+                    <option value="measureType">Measure Type</option>
+                    <option value="par">Standard Par</option>
+                    <option value="cost">Estimated Cost</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="px-2.5 py-1.5 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 shadow-sm active:scale-95 touch-manipulation"
+                    title="Toggle Sort Direction (A-Z or Z-A)"
+                  >
+                    {catalogSortDirection === 'asc' ? 'A → Z ↑' : 'Z → A ↓'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 📱 Mobile Card List (Zero horizontal scrolling, 100% vertical) */}
+            <div className="block md:hidden divide-y divide-slate-100 p-2.5 bg-white space-y-2.5">
+              {filteredCatalogItems.map(item => (
+                <div key={item.id} className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-xs bg-slate-200 text-slate-800 px-2 py-0.5 rounded">
+                      #{item.itemCode || item.id}
+                    </span>
+                    <span className="bg-amber-100 border border-amber-300 text-amber-900 font-bold px-2 py-0.5 rounded-lg text-[10px] uppercase">
+                      {item.category}
+                    </span>
+                    <span className="font-mono font-black text-emerald-800 text-xs ml-auto">
+                      ${(item.recentPurchasePrice || item.createdPrice || 24.50).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      referrerPolicy="no-referrer"
+                      src={item.photoUrl}
+                      alt={item.name}
+                      className="w-10 h-10 rounded-lg border object-cover bg-white shrink-0 shadow-xs"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-black text-slate-900 text-sm leading-snug">{item.name}</h4>
+                      <p className="text-[11px] text-slate-500 font-medium truncate">Vendor: <strong className="text-slate-700">{item.vendorName}</strong></p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-200/60 text-[11px]">
+                    <div>
+                      {item.measurementType === 'weight' && (
+                        <span className="text-amber-800 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                          ⚖️ {item.weightOrVolumeValue} {item.weightUnit || 'lbs'}
+                        </span>
+                      )}
+                      {item.measurementType === 'liquid' && (
+                        <span className="text-sky-800 font-bold bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                          💧 {item.weightOrVolumeValue} {item.liquidUnit || 'gal'}
+                        </span>
+                      )}
+                      {(!item.measurementType || item.measurementType === 'discrete') && (
+                        <span className="text-slate-600 font-semibold bg-white border px-1.5 py-0.5 rounded">
+                          📦 Std ({item.unitOfMeasurement})
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-mono font-bold text-slate-700 text-xs">
+                      Par: <span className="text-slate-950 font-black">{item.defaultParLevel}</span> {item.unitOfMeasurement || 'cases'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filteredCatalogItems.length === 0 && (
+                <div className="py-10 text-center text-slate-400 text-xs font-mono">
+                  No inventory item records match your applied filter spec modifiers.
+                </div>
+              )}
+            </div>
+
+            {/* 💻 Desktop & Tablet Table (Hidden on mobile phones, active on iPad & Desktop) */}
+            <div className="hidden md:block overflow-x-auto text-[11px]">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-mono uppercase text-[9.5px] font-black">
@@ -2285,8 +2376,100 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
             </div>
           </div>
 
-          {/* Invoices Ledger Table */}
+          {/* Invoices Ledger Container */}
           <div id="printable-invoices-report" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+            {/* 📱 Mobile Invoices Card List (Zero horizontal scroll) */}
+            <div className="block md:hidden divide-y divide-slate-100 p-2.5 bg-white space-y-3">
+              {filteredInvoices.length > 0 ? (
+                filteredInvoices.map((inv) => {
+                  const isExpanded = expandedInvoiceId === inv.id;
+                  return (
+                    <div key={inv.id} className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2.5 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono font-bold text-xs bg-slate-200 text-slate-800 px-2 py-0.5 rounded">
+                          {inv.id}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-xs bg-amber-100 border border-amber-300 text-amber-900 px-1.5 py-0.5 rounded">
+                            {inv.storeLocation || 'AR'}
+                          </span>
+                          <span className="px-2 py-0.5 bg-slate-100 text-[10px] rounded font-bold uppercase border border-slate-200 text-slate-600">
+                            {inv.category}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start justify-between gap-2 pt-0.5">
+                        <div>
+                          <h4 className="font-black text-slate-900 text-base leading-tight">{inv.vendorName}</h4>
+                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">{inv.date} @ {inv.time}</p>
+                          <p className="text-[11px] text-slate-600 font-semibold">{inv.itemsCount} items / cases</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 font-mono block">Total</span>
+                          <span className="font-mono font-black text-emerald-700 text-base">
+                            ${Number(inv.totalPrice).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedInvoiceId(isExpanded ? null : inv.id)}
+                          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg transition"
+                        >
+                          {isExpanded ? 'Hide Line Items ▲' : 'View Line Items ▼'}
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => startEditInvoice(inv)}
+                            className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteInvoiceAction(inv.id, inv.vendorName)}
+                            className="p-2 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expandable Line Items on Mobile */}
+                      {isExpanded && (
+                        <div className="pt-2 border-t border-dashed border-slate-300 space-y-2 bg-white p-2.5 rounded-lg">
+                          <h5 className="text-[10px] font-bold text-slate-500 font-mono uppercase tracking-wider">Line Items:</h5>
+                          <div className="divide-y divide-slate-100 text-xs">
+                            {inv.items.map((it, sIdx) => (
+                              <div key={sIdx} className="py-1.5 flex justify-between items-center text-[11px]">
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{it.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">{it.quantity} {it.packaging || 'cases'} @ ${Number(it.price).toFixed(2)}</span>
+                                </div>
+                                <span className="font-mono font-bold text-emerald-800 text-xs">
+                                  ${(Number(it.price) * Number(it.quantity)).toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-8 text-center text-slate-400 italic text-xs">
+                  No invoicing delivery matches found for the active criteria.
+                </div>
+              )}
+            </div>
+
+            {/* 💻 Desktop & Tablet Table (Hidden on mobile phones) */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-900 text-white uppercase font-mono text-[9px] font-bold tracking-wider">
@@ -2407,6 +2590,7 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

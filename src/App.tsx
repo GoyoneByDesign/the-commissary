@@ -92,28 +92,30 @@ export default function App() {
       
       {/* 🚀 Main Global Header */}
       <header className="bg-slate-950 border-b border-red-500/20 text-white shadow-md font-sans sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
           
           {/* Logo Brand area */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white border border-slate-200/80 shadow-md flex items-center justify-center transform hover:scale-105 transition overflow-hidden p-0.5">
-              <AppLogo className="w-10 h-10" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-lg font-black font-display tracking-tight text-white">The Commissary</h1>
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200/80 shadow-md flex items-center justify-center transform hover:scale-105 transition overflow-hidden p-0.5 shrink-0">
+                <AppLogo className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>
-              <p className="text-[10px] text-amber-500 font-mono font-medium tracking-wide">
-                Track Inventory by Voice. Anytime. Anywhere.
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-base sm:text-lg font-black font-display tracking-tight text-white leading-tight">The Commissary</h1>
+                </div>
+                <p className="text-[9px] sm:text-[10px] text-amber-500 font-mono font-medium tracking-wide">
+                  Track Inventory by Voice. Anytime. Anywhere.
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Action buttons & Platform Toggle */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
             <button
               onClick={() => setShowGitHubModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-slate-700 hover:border-amber-400/50"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-slate-700 hover:border-amber-400/50 cursor-pointer"
               title="Push project repository directly to GitHub"
             >
               <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
@@ -123,7 +125,7 @@ export default function App() {
             <a
               href="/the-commissary-project.zip"
               download="the-commissary-project.zip"
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-emerald-400/30"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-emerald-400/30 cursor-pointer"
               title="Download full project ZIP for ChatGPT or offline use"
             >
               <FileDown className="w-3.5 h-3.5" />
@@ -134,26 +136,26 @@ export default function App() {
             <div className="flex items-center bg-slate-900 p-1 border border-slate-800 rounded-xl max-w-sm w-full sm:w-auto font-mono text-xs">
               <button
                 onClick={() => setPlatformView('app_simulator')}
-                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border rounded-lg font-bold transition ${
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-lg font-bold transition cursor-pointer text-xs ${
                   platformView === 'app_simulator' 
                     ? 'bg-amber-500 text-slate-950 shadow-md border-amber-400' 
                     : 'text-slate-400 hover:text-slate-200 border-transparent'
                 }`}
               >
                 <Compass className="w-3.5 h-3.5" />
-                <span>Interactive App Client</span>
+                <span>Interactive App</span>
               </button>
               
               <button
                 onClick={() => setPlatformView('android_code')}
-                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border rounded-lg font-bold transition ${
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-lg font-bold transition cursor-pointer text-xs ${
                   platformView === 'android_code' 
                     ? 'bg-amber-500 text-slate-950 shadow-md border-amber-400' 
                     : 'text-slate-400 hover:text-slate-200 border-transparent'
                 }`}
               >
                 <FolderGit2 className="w-3.5 h-3.5 animate-pulse" />
-                <span>Jetpack Compose Portal</span>
+                <span>Compose Code</span>
               </button>
             </div>
           </div>
@@ -163,12 +165,12 @@ export default function App() {
 
       {/* 🧬 Sub Header: User simulation Controls (Visible in app_simulator only) */}
       {platformView === 'app_simulator' && (
-        <div className="bg-amber-500 border-b border-amber-600 p-2.5 px-4 text-slate-950 font-sans shadow-inner">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs font-semibold">
+        <div className="bg-amber-500 border-b border-amber-600 p-2 sm:p-2.5 px-3 sm:px-4 text-slate-950 font-sans shadow-inner">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-semibold">
             <div className="flex items-center gap-2">
-              <span className="bg-slate-950 text-amber-400 rounded px-2 py-0.5 font-mono text-[9px] font-bold">SIMULATION MODE</span>
-              <p className="text-slate-900">
-                You can switch simulated staff roles instantly below to evaluate the <b>Role-Based Access partitions</b> in action:
+              <span className="bg-slate-950 text-amber-400 rounded px-2 py-0.5 font-mono text-[9px] font-bold shrink-0">ROLES</span>
+              <p className="text-slate-900 text-[11px] sm:text-xs">
+                Switch staff roles to evaluate <b>Role-Based Access partitions</b>:
               </p>
             </div>
             
@@ -180,13 +182,13 @@ export default function App() {
                   <button
                     key={role}
                     onClick={() => handleSimulateRoleChange(role)}
-                    className={`px-3 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 border uppercase tracking-wider ${
+                    className={`px-2.5 py-1 text-white text-[10px] sm:text-xs font-bold rounded-lg transition-all active:scale-95 border uppercase tracking-wider cursor-pointer ${
                       isSelected 
-                        ? 'bg-gradient-to-r from-red-650 to-red-600 text-red-400 border-red-500 font-black' 
-                        : 'bg-slate-950 text-slate-400 border-slate-800'
+                        ? 'bg-slate-950 text-amber-400 border-slate-900 font-black ring-1 ring-slate-950' 
+                        : 'bg-amber-600/60 text-slate-950 border-amber-700/40 hover:bg-slate-900 hover:text-white'
                     }`}
                   >
-                    {role} Profile
+                    {role}
                   </button>
                 );
               })}
@@ -196,7 +198,7 @@ export default function App() {
       )}
 
       {/* 🏛️ Main Page Layout Container */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-2.5 sm:px-4 md:px-6 py-4 sm:py-6 w-full overflow-hidden">
 
         {/* 📚 TAB 1: ANDROID JACTPACK COMPOSE DEVELOPER PORTAL */}
         {platformView === 'android_code' && (
@@ -692,20 +694,20 @@ export default function App() {
             {/* Screen 7: Inventory counting counting checksheet sheet */}
             {currentScreen === 'counting' && (
               <div className="space-y-4">
-                <div className="flex justify-between items-center bg-white p-3 px-4 rounded-xl border">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 bg-white p-3 px-4 rounded-xl border">
                   <button
                     onClick={() => setCurrentScreen('forms')}
-                    className="p-1.5 px-3 border hover:bg-slate-50 transition rounded-lg text-xs font-bold text-slate-500 flex items-center gap-1.5"
+                    className="p-2 px-3 border hover:bg-slate-50 transition rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-1.5 touch-manipulation"
                   >
-                    <ArrowLeft className="w-4 h-4" /> Returns form forms List
+                    <ArrowLeft className="w-4 h-4" /> Back to Forms
                   </button>
 
                   <button 
                     onClick={() => setCurrentScreen('voice')}
-                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black border border-amber-400 rounded-xl text-xs uppercase cursor-pointer flex items-center gap-1.5 shadow-sm transition"
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black border border-amber-400 rounded-xl text-xs uppercase cursor-pointer flex items-center justify-center gap-1.5 shadow-sm transition touch-manipulation"
                   >
                     <Mic className="w-4 h-4 text-slate-950" />
-                    Open Voice mic helper
+                    Open Voice Mic Assistant
                   </button>
                 </div>
 
@@ -947,47 +949,47 @@ export default function App() {
 
             {/* 📋 SIMULATION NAVIGATION TAB TRUCK RAIL (Visible only in simulator view) */}
             {currentScreen !== 'splash' && (
-              <div className="bg-slate-900 p-3 px-4 border border-slate-800 rounded-2xl flex flex-wrap gap-2.5 items-center justify-between text-white font-mono text-[11px] shadow-lg sticky bottom-4 z-40">
+              <div className="bg-slate-900/95 backdrop-blur-md p-2.5 sm:p-3 px-3 sm:px-4 border border-slate-800 rounded-2xl flex flex-wrap gap-2 items-center justify-between text-white font-mono text-[11px] shadow-xl sticky bottom-2 sm:bottom-4 z-40 max-w-full overflow-hidden">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                  <p className="text-slate-300">
-                    Active screen: <b className="text-amber-500 uppercase">{currentScreen} Screen</b>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <p className="text-slate-300 text-[10.5px] sm:text-xs">
+                    Screen: <b className="text-amber-500 uppercase">{currentScreen}</b>
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
                   <button 
                     onClick={() => setCurrentScreen('dashboard')}
-                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-350 bg-slate-950 border border-slate-800 text-[10px] font-bold"
+                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-300 bg-slate-950 border border-slate-800 text-[10.5px] font-bold touch-manipulation"
                   >
-                    Cockpit Terminal
+                    Cockpit
                   </button>
                   <button 
                     onClick={() => {
                       setSelectedLocCode('AR');
                       setCurrentScreen('locations');
                     }}
-                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-350 bg-slate-950 border border-slate-800 text-[10px] font-bold"
+                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-300 bg-slate-950 border border-slate-800 text-[10.5px] font-bold touch-manipulation"
                   >
-                    Select Location
+                    Stores
                   </button>
                   <button 
                     onClick={() => setCurrentScreen('reports')}
-                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-350 bg-slate-950 border border-slate-800 text-[10px] font-bold"
+                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-300 bg-slate-950 border border-slate-800 text-[10.5px] font-bold touch-manipulation"
                   >
-                    Open Reports
+                    Reports
                   </button>
                   {canAccessAdmin && (
                     <button 
                       onClick={() => setCurrentScreen('admin')}
-                      className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-350 bg-slate-950 border border-slate-800 text-[10px] font-bold"
+                      className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-300 bg-slate-950 border border-slate-800 text-[10.5px] font-bold touch-manipulation"
                     >
-                      Admin Panel
+                      Admin
                     </button>
                   )}
                   <button 
                     onClick={() => setCurrentScreen('settings')}
-                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-350 bg-slate-950 border border-slate-800 text-[10px] font-bold"
+                    className="px-2.5 py-1.5 hover:bg-slate-800 hover:text-white rounded text-slate-300 bg-slate-950 border border-slate-800 text-[10.5px] font-bold touch-manipulation"
                   >
                     Settings
                   </button>
@@ -995,9 +997,9 @@ export default function App() {
                     onClick={() => {
                       setCurrentScreen('splash');
                     }}
-                    className="px-2.5 py-1.5 bg-red-650 hover:bg-red-500 text-red-500 border border-red-500/20 rounded text-[10px] font-bold"
+                    className="px-2.5 py-1.5 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800/40 rounded text-[10.5px] font-bold touch-manipulation"
                   >
-                    Reset Splash Flow
+                    Exit Demo
                   </button>
                 </div>
               </div>
