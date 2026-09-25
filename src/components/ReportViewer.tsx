@@ -506,9 +506,17 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
   // Printable catalog print command using hidden iframe for immediate system print modal
   const triggerNativePrint = () => {
+    const shiftLabel = filterTime === 'Breakfast'
+      ? 'Breakfast (Opening - 10:59 AM)'
+      : filterTime === 'Lunch'
+      ? 'Lunch (11:00 AM - 3:59 PM)'
+      : filterTime === 'Dinner'
+      ? 'Dinner (4:00 PM - Closing)'
+      : (filterTime || 'All Day');
+
     const metaText = `
       <div>GENERATED: ${new Date().toLocaleString()}</div>
-      <div>STORES SELECTED: ${filterStore || 'All Available Outlets'} | SHIFT TIME: ${filterTime || 'All Day'}</div>
+      <div>STORES SELECTED: ${filterStore || 'All Available Outlets'} | SHIFT TIME: ${shiftLabel}</div>
     `;
 
     const tableRows = filteredCatalogItems.map(item => `
@@ -1114,9 +1122,9 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
                   className="w-full p-2 border bg-white rounded-lg font-mono text-[10.5px] text-slate-700 outline-none focus:border-amber-500 font-semibold"
                 >
                   <option value="">-- All Day --</option>
-                  <option value="morning">Morning Shift (06:00 - 12:00)</option>
-                  <option value="afternoon">Afternoon Shift (12:00 - 18:00)</option>
-                  <option value="night">Graveyard Shift (18:00 - Midnight)</option>
+                  <option value="Breakfast">Breakfast (Opening - 10:59 AM)</option>
+                  <option value="Lunch">Lunch (11:00 AM - 3:59 PM)</option>
+                  <option value="Dinner">Dinner (4:00 PM - Closing)</option>
                 </select>
               </div>
 
@@ -2209,6 +2217,51 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
                   className="w-full p-2 border bg-white rounded-lg font-mono text-[10.5px] outline-none focus:border-amber-500"
                 />
               </div>
+            </div>
+
+            {/* Quick Shift Presets */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/50">
+              <span className="text-[9px] font-mono font-black text-slate-400 uppercase">Quick Shift Presets:</span>
+              <button
+                type="button"
+                onClick={() => { setInvFilterStartTime('00:00'); setInvFilterEndTime('10:59'); }}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition cursor-pointer ${
+                  invFilterStartTime === '00:00' && invFilterEndTime === '10:59'
+                    ? 'bg-amber-500 text-slate-950 font-black'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-amber-50'
+                }`}
+              >
+                Breakfast (Opening - 10:59 AM)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setInvFilterStartTime('11:00'); setInvFilterEndTime('15:59'); }}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition cursor-pointer ${
+                  invFilterStartTime === '11:00' && invFilterEndTime === '15:59'
+                    ? 'bg-amber-500 text-slate-950 font-black'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-amber-50'
+                }`}
+              >
+                Lunch (11:00 AM - 3:59 PM)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setInvFilterStartTime('16:00'); setInvFilterEndTime('23:59'); }}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition cursor-pointer ${
+                  invFilterStartTime === '16:00' && invFilterEndTime === '23:59'
+                    ? 'bg-amber-500 text-slate-950 font-black'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-amber-50'
+                }`}
+              >
+                Dinner (4:00 PM - Closing)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setInvFilterStartTime(''); setInvFilterEndTime(''); }}
+                className="px-2 py-1 rounded-md text-[10px] font-mono text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Clear Shift Time
+              </button>
             </div>
 
             {/* Reset filters */}
