@@ -15,8 +15,12 @@ import {
   Save, Check, Search, Filter, Camera, RefreshCw, Sparkles, 
   Volume2, VolumeX, Mic, MicOff, Printer, FileSpreadsheet, LayoutGrid, Table as TableIcon,
   AlertTriangle, Clock, ShieldAlert, CheckCircle2, ChevronRight, HelpCircle,
-  ArrowLeft, ArrowRight, Plus, Minus, UserCheck, Brain, Award, Sliders, X, Trash2
+  ArrowLeft, ArrowRight, Plus, Minus, UserCheck, Brain, Award, Sliders, X, Trash2,
+  ShoppingCart, Download, Mail, Eye, Send
 } from 'lucide-react';
+import { populateActualExcelFile, PopulatedExcelResult } from '../utils/excelTemplatePopulator';
+import ExcelPreviewModal from './ExcelPreviewModal';
+import { getAppSettings } from '../utils/settingsManager';
 
 interface InventoryFormCountingProps {
   form: InventoryForm;
@@ -35,11 +39,32 @@ export default function InventoryFormCounting({
   activeVoiceParsedCmd,
   availableItems
 }: InventoryFormCountingProps) {
-  // 🎯 Counting Phase: 'counting' (Fast count showing ONLY Item Name & Count) vs 'review' (Everything shown for checking)
-  const [countingPhase, setCountingPhase] = useState<'counting' | 'review'>('counting');
+  // 🎯 Counting Phase: 'counting' (Fast count) | 'review' (Everything shown) | 'ordering' (Ordering phase) | 'completed' (Finished with Excel/Email)
+  const [countingPhase, setCountingPhase] = useState<'counting' | 'review' | 'ordering' | 'completed'>('counting');
 
   // 🎙️ Input method during counting: 'manual' (keypad/touch/buttons) vs 'voice' (AI speech)
   const [countInputMethod, setCountInputMethod] = useState<'manual' | 'voice'>('manual');
+
+  // 📦 Input method during ordering: 'manual' vs 'voice'
+  const [orderInputMethod, setOrderInputMethod] = useState<'manual' | 'voice'>('voice');
+
+  // 📢 Active Modal Prompt: 'none' | 'save_count' | 'ready_to_order' | 'select_order_method' | 'save_order'
+  const [activeModalPrompt, setActiveModalPrompt] = useState<'none' | 'save_count' | 'ready_to_order' | 'select_order_method' | 'save_order'>('none');
+
+  // 📊 Excel Populated Results & Preview
+  const [populatedExcel, setPopulatedExcel] = useState<PopulatedExcelResult | null>(null);
+  const [showExcelPreview, setShowExcelPreview] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+  const [isEmailingOrder, setIsEmailingOrder] = useState(false);
+  const [emailSentNotice, setEmailSentNotice] = useState<string | null>(null);
+
+  // Sync refs to avoid stale closures in speech recognition
+  const countingPhaseRef = useRef(countingPhase);
+  countingPhaseRef.current = countingPhase;
+  const orderInputMethodRef = useRef(orderInputMethod);
+  orderInputMethodRef.current = orderInputMethod;
+  const activeModalPromptRef = useRef(activeModalPrompt);
+  activeModalPromptRef.current = activeModalPrompt;
 
   // 🔊 Voice recognition & AI speech engine states
   const [isVoiceListening, setIsVoiceListening] = useState(false);
@@ -736,8 +761,169 @@ export default function InventoryFormCounting({
         itemRowRefs.current[nextItem.itemId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 150);
     } else if (currentIndex === currentList.length - 1) {
-      speakFeedback("All items counted! Ready for review.");
-      setVoiceActionNotice("🎉 Reached the last item in this section. Ready to review!");
+      setActiveModalPrompt('save_count');
+      speakFeedback("All items counted! Save it?");
+      setVoiceActionNotice("🎉 All items counted! SAVE IT?");
+    }
+  };
+
+  // Advance red outline focus in ordering phase
+  const advanceToNextOrderItem = (currentItemId: string) => {
+    const currentList = displayedItemsRef.current;
+    const currentIndex = currentList.findIndex(i => i.itemId === currentItemId);
+    if (currentIndex !== -1 && currentIndex + 1 < currentList.length) {
+      const nextItem = currentList[currentIndex + 1];
+      setActiveVoiceItemId(nextItem.itemId);
+      const theo = Math.max(0, (nextItem.parLevel || 0) - (nextItem.currentCount || 0));
+      const notice = `➡️ Next order: "${nextItem.name}" (Par: ${nextItem.parLevel}, Inv: ${nextItem.currentCount}, Theo: ${theo})`;
+      setVoiceActionNotice(notice);
+      setTimeout(() => {
+        itemRowRefs.current[nextItem.itemId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    } else if (currentIndex === currentList.length - 1) {
+      setActiveModalPrompt('save_order');
+      speakFeedback("All items ordered! Save it?");
+      setVoiceActionNotice("🎉 All items ordered! SAVE IT?");
+    }
+  };
+
+  // Prompt & Modal flow handlers
+  const handleConfirmSaveCount = () => {
+    handleSaveDraft();
+    setActiveModalPrompt('ready_to_order');
+    setVoiceActionNotice("✓ Count saved! Ready to order?");
+    speakFeedback("Count saved. Ready to order?");
+  };
+
+  const handleCancelSaveCount = () => {
+    setActiveModalPrompt('none');
+    const firstItem = displayedItemsRef.current[0] || (Object.values(itemsMapRef.current) as SubmissionItem[])[0];
+    if (firstItem) {
+      jumpToItem(firstItem.itemId, 'Reviewing count from first item');
+      speakFeedback("Going to first item for review.");
+    }
+  };
+
+  const handleConfirmReadyToOrder = () => {
+    setActiveModalPrompt('select_order_method');
+    setVoiceActionNotice("Ready to order. Choose MANUAL or VOICE.");
+    speakFeedback("Ready to order. Manual or Voice?");
+  };
+
+  const handleCancelReadyToOrder = () => {
+    setActiveModalPrompt('none');
+    const firstItem = displayedItemsRef.current[0] || (Object.values(itemsMapRef.current) as SubmissionItem[])[0];
+    if (firstItem) {
+      jumpToItem(firstItem.itemId, 'Reviewing count from first item');
+      speakFeedback("Reviewing items. Press Ready to Order when you are ready.");
+    }
+  };
+
+  const handleSelectOrderMethod = (method: 'manual' | 'voice') => {
+    setOrderInputMethod(method);
+    setCountingPhase('ordering');
+    setActiveModalPrompt('none');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const firstItem = displayedItemsRef.current[0] || (Object.values(itemsMapRef.current) as SubmissionItem[])[0];
+    if (firstItem) {
+      setActiveVoiceItemId(firstItem.itemId);
+    }
+
+    if (method === 'voice') {
+      startVoiceCounting();
+      setVoiceActionNotice(`🎙️ Voice Ordering active! Say order quantity for ${firstItem?.name || 'first item'}.`);
+      speakFeedback(`Voice ordering ready! ${firstItem?.name || 'First item'}. What is the order?`);
+    } else {
+      if (isVoiceListening && recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        setIsVoiceListening(false);
+      }
+      setVoiceActionNotice("✍️ Manual Ordering active. Enter order numbers.");
+      speakFeedback("Manual ordering mode. Enter your orders.");
+    }
+  };
+
+  const handleConfirmSaveOrder = async () => {
+    setActiveModalPrompt('none');
+    setIsGeneratingExcel(true);
+    speakFeedback("Generating Excel order form. Please wait.");
+    
+    try {
+      const allItems = Object.values(itemsMapRef.current) as SubmissionItem[];
+      const result = await populateActualExcelFile(
+        form.excelFileName,
+        form.title,
+        allItems,
+        activeVoiceUser.name,
+        new Date()
+      );
+      setPopulatedExcel(result);
+      setCountingPhase('completed');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      speakFeedback(`Order completed! File ${result.fileName} is ready.`);
+    } catch (err) {
+      console.error("Error generating Excel:", err);
+      alert("Could not generate Excel file. Showing summary.");
+      setCountingPhase('completed');
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+
+  const handleCancelSaveOrder = () => {
+    setActiveModalPrompt('none');
+    const firstItem = displayedItemsRef.current[0] || (Object.values(itemsMapRef.current) as SubmissionItem[])[0];
+    if (firstItem) {
+      jumpToItem(firstItem.itemId, 'Reviewing orders from first item');
+      speakFeedback("Reviewing orders from first item.");
+    }
+  };
+
+  const handleDownloadPopulatedExcel = () => {
+    if (!populatedExcel) return;
+    const url = URL.createObjectURL(populatedExcel.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = populatedExcel.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEmailExcelFile = async () => {
+    if (!populatedExcel) return;
+    setIsEmailingOrder(true);
+    setEmailSentNotice(null);
+    try {
+      const res = await fetch('/api/email/send-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: populatedExcel.recipientEmail,
+          subject: populatedExcel.subjectLine,
+          fileName: populatedExcel.fileName,
+          base64File: populatedExcel.base64,
+          userName: activeVoiceUser.name,
+          storeLocation: form.locationCode,
+          footerText: populatedExcel.footerText,
+          itemsCounted: stats.totalCounted,
+          itemsOrdered: stats.totalFinal
+        })
+      });
+      if (res.ok) {
+        setEmailSentNotice(`✓ Order file "${populatedExcel.fileName}" sent to ${populatedExcel.recipientEmail}!`);
+        speakFeedback(`Order dispatched to ${populatedExcel.recipientEmail}`);
+      } else {
+        window.open(`mailto:${populatedExcel.recipientEmail}?subject=${encodeURIComponent(populatedExcel.subjectLine)}&body=${encodeURIComponent("Please find attached the inventory order spreadsheet: " + populatedExcel.fileName)}`);
+        setEmailSentNotice(`✓ Mail client opened for ${populatedExcel.recipientEmail}`);
+      }
+    } catch (err) {
+      window.open(`mailto:${populatedExcel.recipientEmail}?subject=${encodeURIComponent(populatedExcel.subjectLine)}&body=${encodeURIComponent("Please find attached the inventory order spreadsheet: " + populatedExcel.fileName)}`);
+      setEmailSentNotice(`✓ Mail client opened for ${populatedExcel.recipientEmail}`);
+    } finally {
+      setIsEmailingOrder(false);
     }
   };
 
@@ -798,6 +984,56 @@ export default function InventoryFormCounting({
     setLiveSpokenCaption(cleanSpoken);
     setVoiceTranscript(cleanSpoken);
     const lower = cleanSpoken.toLowerCase();
+    const currentPrompt = activeModalPromptRef.current;
+    const currentPhase = countingPhaseRef.current;
+
+    // =========================================================================
+    // A. DIALOG PROMPTS VOICE ROUTING ("SAVE IT?", "READY TO ORDER?", "MANUAL/VOICE")
+    // =========================================================================
+    if (currentPrompt === 'save_count') {
+      if (/\b(yes|yeah|yep|si|sí|sure|save|save it|ok|okay|confirm)\b/i.test(lower)) {
+        handleConfirmSaveCount();
+        return;
+      }
+      if (/\b(no|nope|cancel|wait|review|back|stop)\b/i.test(lower)) {
+        handleCancelSaveCount();
+        return;
+      }
+    }
+
+    if (currentPrompt === 'ready_to_order') {
+      if (/\b(yes|yeah|yep|si|sí|sure|order|ready|ok|okay)\b/i.test(lower)) {
+        handleConfirmReadyToOrder();
+        return;
+      }
+      if (/\b(no|nope|not yet|wait|review|cancel)\b/i.test(lower)) {
+        handleCancelReadyToOrder();
+        return;
+      }
+    }
+
+    if (currentPrompt === 'select_order_method') {
+      if (/\b(manual|hand|type|keyboard)\b/i.test(lower)) {
+        handleSelectOrderMethod('manual');
+        return;
+      }
+      if (/\b(voice|speech|talk|speak|handsfree)\b/i.test(lower)) {
+        handleSelectOrderMethod('voice');
+        return;
+      }
+    }
+
+    if (currentPrompt === 'save_order') {
+      if (/\b(yes|yeah|yep|si|sí|sure|save|save it|submit|confirm|done|finish)\b/i.test(lower)) {
+        handleConfirmSaveOrder();
+        return;
+      }
+      if (/\b(no|nope|cancel|wait|review|edit|back)\b/i.test(lower)) {
+        handleCancelSaveOrder();
+        return;
+      }
+    }
+
     const allItems = Object.values(itemsMapRef.current) as SubmissionItem[];
     const displayed = displayedItemsRef.current.length > 0 ? displayedItemsRef.current : allItems;
 
@@ -806,6 +1042,68 @@ export default function InventoryFormCounting({
       || displayed[0] 
       || allItems[0];
 
+    // =========================================================================
+    // B. "SKIP TO [ITEM]" / "GO TO [ITEM]" / "SAVE IT" NAVIGATION COMMANDS
+    // =========================================================================
+    const skipMatch = lower.match(/(?:skip\s+to|go\s+to|jump\s+to|move\s+to)\s+(.+)/i);
+    if (skipMatch) {
+      const targetQuery = skipMatch[1].trim();
+      const targetItem = findBestMatchingItem(targetQuery, displayed, allItems);
+      if (targetItem) {
+        jumpToItem(targetItem.itemId, `🎯 Skipped to: "${targetItem.name}"`);
+        return;
+      }
+    }
+
+    // Trigger save / prompt spoken shortcuts
+    if (currentPhase === 'counting') {
+      if (/\b(save it|save form|finish count|done counting|ready to order)\b/i.test(lower)) {
+        setActiveModalPrompt('save_count');
+        speakFeedback("SAVE IT?");
+        return;
+      }
+    } else if (currentPhase === 'ordering') {
+      if (/\b(save it|save order|finish order|done ordering|complete order|submit order)\b/i.test(lower)) {
+        setActiveModalPrompt('save_order');
+        speakFeedback("SAVE IT?");
+        return;
+      }
+    }
+
+    // =========================================================================
+    // C. ORDERING PHASE VOICE ENTRY (Fills Final Order & Advances Down)
+    // =========================================================================
+    if (currentPhase === 'ordering') {
+      const extractedCount = extractQuantityFromSpeech(cleanSpoken);
+      const matchedItem = findBestMatchingItem(cleanSpoken, displayed, allItems);
+
+      if (matchedItem && extractedCount !== null) {
+        handleFinalOrderChange(matchedItem.itemId, String(extractedCount));
+        setVoiceActionNotice(`✓ Set Order for "${matchedItem.name}" to ${extractedCount}`);
+        speakFeedback(`${matchedItem.name}: order ${extractedCount}`);
+        advanceToNextOrderItem(matchedItem.itemId);
+        return;
+      }
+
+      if (matchedItem && extractedCount === null) {
+        jumpToItem(matchedItem.itemId);
+        return;
+      }
+
+      if (!matchedItem && extractedCount !== null && currentActiveItem) {
+        handleFinalOrderChange(currentActiveItem.itemId, String(extractedCount));
+        setVoiceActionNotice(`✓ Set Order for "${currentActiveItem.name}" to ${extractedCount}`);
+        speakFeedback(`${currentActiveItem.name}: order ${extractedCount}`);
+        advanceToNextOrderItem(currentActiveItem.itemId);
+        return;
+      }
+
+      return;
+    }
+
+    // =========================================================================
+    // D. COUNTING PHASE VOICE ENTRY (Fills Inventory Count & Advances Down)
+    // =========================================================================
     // 1. Dual Beer matching (walk-in and bar)
     const walkInBarRegex = /(.*?)(?:walk\s*in|walkin)\s*(\d+(?:\.\d+)?).*?(?:bar|front)\s*(\d+(?:\.\d+)?)/i;
     const wlkMatch = lower.match(walkInBarRegex);
@@ -1012,7 +1310,8 @@ export default function InventoryFormCounting({
     };
 
     rec.onend = () => {
-      if (countInputMethod === 'voice' && continuousListening) {
+      const activeVoiceMode = (countInputMethod === 'voice' || orderInputMethod === 'voice' || activeModalPrompt !== 'none');
+      if (activeVoiceMode && continuousListening) {
         try {
           rec.start();
         } catch {}
@@ -1028,7 +1327,7 @@ export default function InventoryFormCounting({
         rec.abort();
       } catch {}
     };
-  }, [continuousListening, countInputMethod]);
+  }, [continuousListening, countInputMethod, orderInputMethod, activeModalPrompt]);
 
   // Final Order override
   const handleFinalOrderChange = (itemId: string, orderVal: string) => {
@@ -2185,28 +2484,42 @@ export default function InventoryFormCounting({
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-xs sm:text-sm font-bold font-mono">
-                Ready to review? <strong className="text-amber-400">{stats.totalCounted} of {stats.totalItems}</strong> items entered
+                Counts: <strong className="text-amber-400">{stats.totalCounted} of {stats.totalItems}</strong> items entered
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setCountingPhase('review');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
-            >
-              <span>Finish & Review Inventory</span>
-              <ArrowRight className="w-4 h-4 stroke-3" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModalPrompt('save_count');
+                  speakFeedback("Save it?");
+                }}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+              >
+                <Save className="w-4 h-4 stroke-3" />
+                <span>Save Count ("SAVE IT?")</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCountingPhase('review');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <span>Review Sheet</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
-      ) : (
+      ) : countingPhase === 'review' ? (
         /* 📋 REVIEW PHASE (EVERYTHING SHOWN FOR CHECKING) */
         <div className="space-y-5 animate-fadeIn">
           
-          {/* Review Banner with Back to Counting Button */}
+          {/* Review Banner with Ready to Order & Back to Counting Buttons */}
           <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-slate-950 p-4 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
@@ -2222,17 +2535,32 @@ export default function InventoryFormCounting({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setCountingPhase('counting');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="bg-slate-950 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Counting</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModalPrompt('ready_to_order');
+                  speakFeedback("Ready to order?");
+                }}
+                className="bg-slate-950 hover:bg-slate-900 text-amber-400 border border-amber-400/50 font-black px-4 py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 shadow transition cursor-pointer active:scale-95"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Ready to Order?</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCountingPhase('counting');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-slate-950/80 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Count</span>
+              </button>
+            </div>
           </div>
 
           {/* 1. REAL-WORLD STORE SHEET HEADER BLOCK (Identical to Anita's physical store clipboard sheets) */}
@@ -3284,6 +3612,20 @@ export default function InventoryFormCounting({
             )}
           </button>
 
+          {/* Ready to Order Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveModalPrompt('ready_to_order');
+              speakFeedback("Ready to order?");
+            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3.5 rounded-xl text-xs uppercase cursor-pointer tracking-wider shadow-md hover:shadow-emerald-200 active:scale-[0.98] transition"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>Ready to Order</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
           {/* Final Submit & Transmit Order */}
           <button
             onClick={handleSubmitForm}
@@ -3301,6 +3643,506 @@ export default function InventoryFormCounting({
                 <span>Submit & Transmit Store Order</span>
               </>
             )}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : countingPhase === 'ordering' ? (
+    /* ========================================================================= */
+    /* 📦 ORDERING PHASE (INVENTORY, PAR, THEORETICAL ORDER, ORDER BOX)           */
+    /* ========================================================================= */
+    <div className="space-y-4 animate-fadeIn">
+      {/* Header Card */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3.5">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono font-bold bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded uppercase">
+                STORE: {form.locationCode}
+              </span>
+              <span className="text-[10px] font-mono text-indigo-300 font-bold bg-indigo-950/80 border border-indigo-500/40 px-2 py-0.5 rounded">
+                ORDERING PHASE
+              </span>
+              <span className="text-[10px] font-mono text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded">
+                ORDERING AS: <strong className="text-white">{activeVoiceUser.name}</strong>
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black font-display text-white mt-1.5">
+              {form.title} — Store Order
+            </h2>
+            <p className="text-xs text-slate-300 font-mono mt-0.5">
+              Ordered Total: <strong className="text-amber-400 font-bold">{stats.totalFinal}</strong> units across {displayedItems.length} items
+            </p>
+          </div>
+
+          {/* Action Buttons in Header */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveModalPrompt('save_order');
+                speakFeedback("Save it?");
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+            >
+              <Check className="w-4 h-4 stroke-3" />
+              <span>Save & Finish Order ("SAVE IT?")</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCountingPhase('review');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-3 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
+            >
+              Review
+            </button>
+          </div>
+        </div>
+
+        {/* Mode Switcher: ✍️ MANUAL ORDER vs 🎙️ VOICE ORDER (AI) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setOrderInputMethod('manual');
+                if (isVoiceListening && recognitionRef.current) {
+                  try { recognitionRef.current.stop(); } catch {}
+                  setIsVoiceListening(false);
+                }
+              }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                orderInputMethod === 'manual'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>✍️ Manual Order</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOrderInputMethod('voice');
+                startVoiceCounting();
+              }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                orderInputMethod === 'voice'
+                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              <span>🎙️ Voice Order (AI)</span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-300 font-mono">
+            Formula: <span className="text-amber-300 font-bold">Theoretical Order = Par Level - Inventory</span>
+          </div>
+        </div>
+
+        {/* Voice Status Box in Ordering Mode */}
+        {orderInputMethod === 'voice' && (
+          <div className="bg-slate-950/90 border border-indigo-500/50 p-3 sm:p-4 rounded-xl space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-indigo-300 font-bold flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4 text-indigo-400 animate-pulse" />
+                🎙️ Voice Ordering Assistant Active
+              </span>
+              {activeVoiceItemId && itemsMap[activeVoiceItemId] && (
+                <span className="bg-rose-950 text-rose-300 border border-rose-500 px-2 py-0.5 rounded text-[10.5px] font-black animate-pulse">
+                  Focus: {itemsMap[activeVoiceItemId].name}
+                </span>
+              )}
+            </div>
+            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs font-mono">
+              {liveSpokenCaption ? (
+                <p className="text-white font-black text-sm">“{liveSpokenCaption}”</p>
+              ) : (
+                <p className="text-slate-300">
+                  Red outline shows active order box. Say just the number (e.g. <i>"3"</i>, <i>"1.5"</i>) to enter order and move to the next item line, or say <i>"SKIP TO [ITEM]"</i>!
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sticky Voice Bar if in Voice Order Mode */}
+      {orderInputMethod === 'voice' && (
+        <div className="sticky top-2 z-20 bg-slate-950/95 backdrop-blur-md border border-indigo-500/50 p-2.5 sm:p-3 rounded-2xl shadow-xl flex items-center justify-between gap-3 text-xs font-mono animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0"></span>
+            <span className="text-indigo-400 font-bold uppercase text-[10px] shrink-0">🎙️ Spoken Order:</span>
+            <span className="text-white truncate font-bold text-xs sm:text-sm">
+              {liveSpokenCaption ? `“${liveSpokenCaption}”` : '"Listening... Say order number"'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {activeVoiceItemId && itemsMap[activeVoiceItemId] && (
+              <span className="bg-rose-950 border border-rose-500 text-rose-300 px-2.5 py-1 rounded-lg text-[10.5px] font-black animate-pulse flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+                Order: {itemsMap[activeVoiceItemId].name}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={toggleVoiceListening}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase flex items-center gap-1 transition cursor-pointer ${
+                isVoiceListening ? 'bg-red-500 text-white' : 'bg-indigo-600 text-white'
+              }`}
+            >
+              <Mic className="w-3 h-3" />
+              <span>{isVoiceListening ? 'Listening' : 'Start Mic'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Ordering Items List (Mobile-Optimized Layout) */}
+      <div className="space-y-3">
+        {displayedItems.map((item, index) => {
+          const isVoiceActive = orderInputMethod === 'voice' && activeVoiceItemId === item.itemId;
+          const theoOrder = Math.max(0, (item.parLevel || 0) - (item.currentCount || 0));
+          const hasOrdered = (item.finalOrder || 0) > 0;
+
+          return (
+            <div
+              key={item.itemId}
+              ref={(el) => { itemRowRefs.current[item.itemId] = el; }}
+              onClick={() => {
+                if (orderInputMethod === 'voice') {
+                  jumpToItem(item.itemId);
+                }
+              }}
+              className={`bg-white border rounded-2xl p-3.5 sm:p-4 shadow-xs transition-all flex flex-col gap-3 ${
+                isVoiceActive
+                  ? 'ring-4 ring-rose-500/80 border-rose-500 bg-rose-50/30 shadow-xl scale-[1.01]'
+                  : hasOrdered
+                  ? 'border-amber-300 bg-amber-50/15'
+                  : 'border-slate-200'
+              }`}
+            >
+              {/* Top Item Row */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`font-mono text-xs font-black w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    isVoiceActive ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    #{index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-900 text-base sm:text-lg leading-snug truncate">
+                      {item.requiresDating && <span className="text-rose-600 font-black mr-1">*</span>}
+                      {item.name}
+                    </h3>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Unit: <strong className="text-slate-800">{item.unit}</strong> {item.itemCode ? `• Code: ${item.itemCode}` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {isVoiceActive && (
+                  <span className="inline-flex items-center gap-1 bg-rose-100 border border-rose-300 text-rose-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md animate-pulse shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping"></span>
+                    Active Voice Order
+                  </span>
+                )}
+              </div>
+
+              {/* 4-Box Metrics Row: 1. INVENTORY, 2. PAR LEVEL, 3. THEORETICAL ORDER, 4. ORDER BOX */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-center">
+                {/* 1. INVENTORY */}
+                <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-center">
+                  <span className="text-[9.5px] font-mono uppercase tracking-wider text-emerald-700 font-bold block mb-0.5">
+                    1. INVENTORY (Count)
+                  </span>
+                  <span className="font-mono text-lg sm:text-xl font-black text-emerald-950">
+                    {item.currentCount || 0}
+                  </span>
+                </div>
+
+                {/* 2. PAR LEVEL */}
+                <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-center">
+                  <span className="text-[9.5px] font-mono uppercase tracking-wider text-slate-500 font-bold block mb-0.5">
+                    2. PAR LEVEL
+                  </span>
+                  <span className="font-mono text-lg sm:text-xl font-black text-slate-800">
+                    {item.parLevel || 0}
+                  </span>
+                </div>
+
+                {/* 3. THEORETICAL ORDER (PAR LEVEL - INVENTORY) */}
+                <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-center">
+                  <span className="text-[9.5px] font-mono uppercase tracking-wider text-amber-800 font-bold block mb-0.5">
+                    3. THEO ORDER
+                  </span>
+                  <span className="font-mono text-lg sm:text-xl font-black text-amber-950">
+                    {theoOrder}
+                  </span>
+                </div>
+
+                {/* 4. ORDER BOX (Editable final order) */}
+                <div className="flex flex-col items-center gap-1 col-span-2 sm:col-span-1">
+                  <span className="text-[9.5px] font-mono uppercase tracking-wider text-indigo-700 font-bold block text-center">
+                    4. ORDER BOX
+                  </span>
+                  <div className="relative flex items-center gap-1 w-full justify-center">
+                    {isVoiceActive && (
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap z-20">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse shadow-md flex items-center gap-1 border border-white">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                          WAITING FOR ORDER #
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = item.finalOrder || 0;
+                        handleFinalOrderChange(item.itemId, String(Math.max(0, cur - 1)));
+                      }}
+                      className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 font-black text-base flex items-center justify-center transition border border-slate-300 touch-manipulation cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5 stroke-3" />
+                    </button>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={item.finalOrder === 0 ? '' : item.finalOrder}
+                      onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
+                      onFocus={() => {
+                        if (orderInputMethod === 'voice') {
+                          setActiveVoiceItemId(item.itemId);
+                        }
+                      }}
+                      placeholder="0"
+                      className={`w-20 sm:w-24 h-10 text-center font-mono font-black text-lg rounded-xl transition cursor-text ${
+                        isVoiceActive
+                          ? 'bg-rose-50 text-rose-950 border-4 border-rose-600 ring-4 ring-rose-400/60 animate-pulse focus:outline-none'
+                          : 'bg-amber-100 text-amber-950 border-2 border-amber-400 focus:bg-white focus:outline-none focus:border-amber-600'
+                      }`}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = item.finalOrder || 0;
+                        handleFinalOrderChange(item.itemId, String(cur + 1));
+                      }}
+                      className="w-10 h-10 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-base flex items-center justify-center transition shadow-sm touch-manipulation cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-3" />
+                    </button>
+                  </div>
+
+                  {/* Quick fractional buttons */}
+                  <div className="flex items-center gap-1 font-mono text-[9px] mt-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = item.finalOrder || 0;
+                        handleFinalOrderChange(item.itemId, String(Math.round((cur + 0.25) * 100) / 100));
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 cursor-pointer"
+                    >
+                      +¼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = item.finalOrder || 0;
+                        handleFinalOrderChange(item.itemId, String(Math.round((cur + 0.5) * 100) / 100));
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 cursor-pointer"
+                    >
+                      +½
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = item.finalOrder || 0;
+                        handleFinalOrderChange(item.itemId, String(Math.round((cur + 0.75) * 100) / 100));
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 cursor-pointer"
+                    >
+                      +¾
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sticky Bottom Action Bar in Ordering Mode */}
+      <div className="sticky bottom-4 z-30 bg-slate-900/95 backdrop-blur-md text-white p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+          <span className="text-xs sm:text-sm font-bold font-mono">
+            Order Total: <strong className="text-amber-400">{stats.totalFinal}</strong> units ready to order
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveModalPrompt('save_order');
+            speakFeedback("Save it?");
+          }}
+          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+        >
+          <Check className="w-4 h-4 stroke-3" />
+          <span>Save Order ("SAVE IT?")</span>
+        </button>
+      </div>
+    </div>
+  ) : (
+    /* ========================================================================= */
+    /* 🎉 COMPLETED PHASE (DOWNLOAD EXCEL, PREVIEW FILE, EMAIL FILE)              */
+    /* ========================================================================= */
+    <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
+      {/* Success Banner */}
+      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-6 sm:p-8 rounded-3xl border-2 border-emerald-500/50 shadow-2xl space-y-5 text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row items-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span className="text-[10px] font-mono font-bold bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded uppercase">
+                STORE ORDER SAVED & VERIFIED
+              </span>
+              <span className="text-[10px] font-mono text-emerald-300 font-bold bg-emerald-950 border border-emerald-500/40 px-2 py-0.5 rounded">
+                STORE: {form.locationCode}
+              </span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black font-display text-white mt-1.5">
+              {form.title}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              Completed by <strong className="text-white">{activeVoiceUser.name}</strong> • {dateStr} at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        </div>
+
+        {/* Verification Tag Card */}
+        <div className="bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 space-y-2 text-left font-mono">
+          <div className="flex items-center justify-between text-[11px] text-emerald-400 uppercase font-bold border-b border-white/10 pb-2">
+            <span className="flex items-center gap-1.5">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> Authentic Populated Excel Template
+            </span>
+            <span className="text-slate-400 text-[10px]">Populated & Ready</span>
+          </div>
+          <div className="space-y-1 text-xs">
+            <p className="text-white">
+              <span className="text-slate-400">File Name: </span>
+              <strong className="text-emerald-300 font-black">{populatedExcel?.fileName || 'InventoryOrder.xlsx'}</strong>
+            </p>
+            <p className="text-slate-300 text-[11px]">
+              <span className="text-slate-400">Verification Footer: </span>
+              <strong className="text-amber-300">{populatedExcel?.footerText || ''}</strong>
+            </p>
+            <p className="text-slate-400 text-[11px]">
+              Recipient: <strong className="text-slate-200">{populatedExcel?.recipientEmail || 'michael.goyone@gmail.com'}</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Notice banner if emailed */}
+        {emailSentNotice && (
+          <div className="bg-emerald-950/90 border border-emerald-400 text-emerald-200 p-3 rounded-xl text-xs font-mono font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{emailSentNotice}</span>
+          </div>
+        )}
+
+        {/* Action Buttons: 1. Download Excel, 2. Preview File, 3. Email File */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          {/* 1. Download Excel */}
+          <button
+            type="button"
+            onClick={handleDownloadPopulatedExcel}
+            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-5 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl active:scale-95 transition cursor-pointer"
+          >
+            <Download className="w-5 h-5 stroke-3" />
+            <span>Download Excel File</span>
+          </button>
+
+          {/* 2. Preview File */}
+          <button
+            type="button"
+            onClick={() => setShowExcelPreview(true)}
+            className="bg-slate-800 hover:bg-slate-700 text-white font-black py-4 px-5 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 border border-slate-700 shadow-lg active:scale-95 transition cursor-pointer"
+          >
+            <Eye className="w-5 h-5 text-amber-400" />
+            <span>Preview File</span>
+          </button>
+
+          {/* 3. Email File */}
+          <button
+            type="button"
+            disabled={isEmailingOrder}
+            onClick={handleEmailExcelFile}
+            className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-4 px-5 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl active:scale-95 transition cursor-pointer"
+          >
+            {isEmailingOrder ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                <span>Dispatching...</span>
+              </>
+            ) : (
+              <>
+                <Mail className="w-5 h-5 stroke-3" />
+                <span>Email File</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Secondary Actions */}
+        <div className="flex flex-wrap items-center justify-center sm:justify-between gap-3 pt-3 border-t border-white/10 text-xs">
+          <button
+            type="button"
+            onClick={handlePrintStoreSheet}
+            className="text-slate-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-amber-400" />
+            <span>Print Physical Checksheet</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCountingPhase('review');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="text-slate-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <span>Review Audit Sheet</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Back to Form Select</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -3663,6 +4505,129 @@ export default function InventoryFormCounting({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 🗣️ ACTIVE VOICE WORKFLOW MODAL PROMPTS ("SAVE IT?", "READY TO ORDER?", etc) */}
+      {/* ========================================================================= */}
+      {activeModalPrompt !== 'none' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl w-full max-w-md shadow-2xl p-6 text-white text-center space-y-5 animate-scaleUp">
+            
+            {/* Prompt Icon */}
+            <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center shadow-lg border-2"
+              style={{
+                backgroundColor: activeModalPrompt === 'select_order_method' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                borderColor: activeModalPrompt === 'select_order_method' ? '#818cf8' : '#f59e0b',
+                color: activeModalPrompt === 'select_order_method' ? '#a5b4fc' : '#fbbf24'
+              }}
+            >
+              {activeModalPrompt === 'save_count' && <Save className="w-9 h-9" />}
+              {activeModalPrompt === 'ready_to_order' && <ShoppingCart className="w-9 h-9" />}
+              {activeModalPrompt === 'select_order_method' && <Brain className="w-9 h-9" />}
+              {activeModalPrompt === 'save_order' && <CheckCircle2 className="w-9 h-9" />}
+            </div>
+
+            {/* Prompt Text */}
+            <div className="space-y-1.5">
+              <h3 className="text-2xl sm:text-3xl font-black font-display text-white tracking-wide uppercase">
+                {activeModalPrompt === 'save_count' && 'SAVE IT?'}
+                {activeModalPrompt === 'ready_to_order' && 'READY TO ORDER?'}
+                {activeModalPrompt === 'select_order_method' && 'CHOOSE ORDER METHOD'}
+                {activeModalPrompt === 'save_order' && 'SAVE IT?'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300">
+                {activeModalPrompt === 'save_count' && 'Inventory count complete! Would you like to save this count?'}
+                {activeModalPrompt === 'ready_to_order' && 'Inventory count saved! Would you like to enter order numbers for your store?'}
+                {activeModalPrompt === 'select_order_method' && 'How would you like to enter order quantities for each item?'}
+                {activeModalPrompt === 'save_order' && 'All orders entered! Do you want to save and generate the final Excel order sheet?'}
+              </p>
+            </div>
+
+            {/* Speech Listening Pulse Badge */}
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs font-mono flex items-center justify-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+              <span className="text-amber-400 font-bold">
+                {activeModalPrompt === 'select_order_method'
+                  ? 'Listening hands-free: Say "MANUAL" or "VOICE"'
+                  : 'Listening hands-free: Say "YES" / "SI" or "NO"'}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            {activeModalPrompt === 'select_order_method' ? (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrderMethod('manual')}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition cursor-pointer"
+                >
+                  <span className="text-lg">✍️</span>
+                  <span>MANUAL</span>
+                  <span className="text-[10px] font-mono text-slate-900 font-normal">Keypad / Buttons</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrderMethod('voice')}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition cursor-pointer"
+                >
+                  <Mic className="w-5 h-5" />
+                  <span>VOICE</span>
+                  <span className="text-[10px] font-mono text-indigo-200 font-normal">AI Hands-Free</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeModalPrompt === 'save_count') handleConfirmSaveCount();
+                    else if (activeModalPrompt === 'ready_to_order') handleConfirmReadyToOrder();
+                    else if (activeModalPrompt === 'save_order') handleConfirmSaveOrder();
+                  }}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+                >
+                  <Check className="w-5 h-5 stroke-3" />
+                  <span>YES / SI</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeModalPrompt === 'save_count') handleCancelSaveCount();
+                    else if (activeModalPrompt === 'ready_to_order') handleCancelReadyToOrder();
+                    else if (activeModalPrompt === 'save_order') handleCancelSaveOrder();
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                  <span>NO</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 📊 FULL SCREEN AUTHENTIC EXCEL SPREADSHEET PREVIEW MODAL                  */}
+      {/* ========================================================================= */}
+      {showExcelPreview && (
+        <ExcelPreviewModal
+          isOpen={showExcelPreview}
+          onClose={() => setShowExcelPreview(false)}
+          fileName={populatedExcel?.fileName || 'InventoryOrder.xlsx'}
+          formTitle={form.title}
+          items={Object.values(itemsMap)}
+          userName={activeVoiceUser.name}
+          dateStr={dateStr}
+          timeStr={new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          footerText={populatedExcel?.footerText || ''}
+          onDownload={handleDownloadPopulatedExcel}
+          onEmail={handleEmailExcelFile}
+          isEmailing={isEmailingOrder}
+        />
       )}
 
     </div>

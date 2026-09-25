@@ -1,4 +1,4 @@
-export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Employee';
+export type UserRole = 'Super Admin' | 'District Manager' | 'Manager' | 'Cashier' | 'Cook' | 'Admin' | 'Employee';
 
 export interface UserVoiceProfile {
   userId: string;
@@ -181,4 +181,24 @@ export interface UploadedInvoice {
     packaging?: string;
   }>;
 }
+
+export interface RolePermissions {
+  canCount: boolean;
+  canOrder: boolean;
+  canDownloadExcel: boolean;
+  canEmailOrders: boolean;
+  canViewCosts: boolean;
+  canEditParLevels: boolean;
+  canUploadForms: boolean;
+  canAccessAdmin: boolean;
+  canManageUsers: boolean;
+  canManageSettings: boolean;
+}
+
+export interface AppSettings {
+  orderEmailRecipient: string; // default michael.goyone@gmail.com
+  footerFormatTemplate: string; // default "[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])"
+  rolePermissions: Record<string, RolePermissions>;
+}
+
 

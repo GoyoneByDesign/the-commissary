@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Location, InventoryItem, InventoryForm, UserRole, Vendor, FormSubmission, UploadedInvoice } from '../types';
+import { User, Location, InventoryItem, InventoryForm, UserRole, Vendor, FormSubmission, UploadedInvoice, AppSettings, RolePermissions } from '../types';
 import { sampleUsers, generateLocations, sampleItems, sampleForms, sampleSubmissions } from '../data/sampleData';
-import { Users, MapPin, ClipboardList, Plus, Edit2, Trash2, Key, Check, PlusCircle, Search, Copy, CheckCircle, RefreshCw, ShieldCheck, Upload, Image, Trash, Cpu, Database, Wifi, Info, HelpCircle, Terminal, Play, CheckSquare, Phone, Mail, Clock, DollarSign, Tag, Receipt, Sparkles, FileText, AlertTriangle, Camera, Video, Scale, Save, Undo } from 'lucide-react';
+import { Users, MapPin, ClipboardList, Plus, Edit2, Trash2, Key, Check, PlusCircle, Search, Copy, CheckCircle, RefreshCw, ShieldCheck, Upload, Image, Trash, Cpu, Database, Wifi, Info, HelpCircle, Terminal, Play, CheckSquare, Phone, Mail, Clock, DollarSign, Tag, Receipt, Sparkles, FileText, AlertTriangle, Camera, Video, Scale, Save, Undo, Sliders, Shield, Lock, FileSpreadsheet } from 'lucide-react';
+import { getAppSettings, saveAppSettings, defaultRolePermissions, defaultAppSettings, getUserInitials } from '../utils/settingsManager';
 
 interface AdminPanelsProps {
   simUser?: any;
@@ -28,7 +29,45 @@ export default function AdminPanels({
   users: propUsers,
   setUsers: propSetUsers
 }: AdminPanelsProps = {}) {
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'locations' | 'items' | 'forms' | 'brand' | 'integrations'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'locations' | 'items' | 'forms' | 'brand' | 'integrations' | 'settings'>('users');
+
+  // Settings & Permissions states
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => getAppSettings());
+  const [orderEmailInput, setOrderEmailInput] = useState(appSettings.orderEmailRecipient || 'michael.goyone@gmail.com');
+  const [footerFormatInput, setFooterFormatInput] = useState(appSettings.footerFormatTemplate || '[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])');
+  const [rolePermissionsMatrix, setRolePermissionsMatrix] = useState<Record<string, RolePermissions>>(() => appSettings.rolePermissions || defaultRolePermissions);
+
+  const handleTogglePermission = (role: string, permissionKey: keyof RolePermissions) => {
+    setRolePermissionsMatrix(prev => ({
+      ...prev,
+      [role]: {
+        ...prev[role],
+        [permissionKey]: !prev[role]?.[permissionKey]
+      }
+    }));
+  };
+
+  const handleSaveSettings = () => {
+    const updated: AppSettings = {
+      orderEmailRecipient: orderEmailInput.trim() || 'michael.goyone@gmail.com',
+      footerFormatTemplate: footerFormatInput.trim() || '[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])',
+      rolePermissions: rolePermissionsMatrix
+    };
+    saveAppSettings(updated);
+    setAppSettings(updated);
+    showToast("Application settings & role permissions matrix successfully saved!");
+  };
+
+  const handleResetSettingsToDefault = () => {
+    if (confirm("Reset all settings and role permissions back to factory defaults?")) {
+      saveAppSettings(defaultAppSettings);
+      setAppSettings(defaultAppSettings);
+      setOrderEmailInput(defaultAppSettings.orderEmailRecipient);
+      setFooterFormatInput(defaultAppSettings.footerFormatTemplate);
+      setRolePermissionsMatrix(defaultAppSettings.rolePermissions);
+      showToast("Settings reset to defaults.");
+    }
+  };
 
   // Invoice/Receipt scan state variables
   const [selectedInvoiceLoc, setSelectedInvoiceLoc] = useState<string>('AR');
@@ -1270,6 +1309,15 @@ export default function AdminPanels({
                 id="pos-integrations-subtab-btn"
               >
                 <Cpu className="w-3.5 h-3.5" /> POS Integrations
+              </button>
+              <button
+                onClick={() => setActiveSubTab('settings')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                  activeSubTab === 'settings' ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+                id="settings-permissions-subtab-btn"
+              >
+                <Sliders className="w-3.5 h-3.5" /> Settings & Permissions
               </button>
             </>
           )}
@@ -4495,6 +4543,285 @@ export default function AdminPanels({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ⚙️ SETTINGS & ROLE-BASED PERMISSIONS MATRIX PANEL                         */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'settings' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header Card */}
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white p-5 sm:p-6 rounded-2xl border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
+                <Sliders className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg sm:text-xl font-display text-white">
+                  System Settings & Role Permissions Matrix
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Configure store order email dispatch, Excel verification footer tags, and role access privileges.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save All Changes</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetSettingsToDefault}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition cursor-pointer border border-slate-700"
+              >
+                Reset Defaults
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 1: ORDER DISPATCH & EXCEL VERIFICATION SETTINGS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Box A: Email Configuration */}
+            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4 shadow-2xs">
+              <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-700">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-slate-900">Order Dispatch Email Recipient</h4>
+                  <p className="text-[11px] text-slate-500">Destination address for completed store inventory & orders</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10.5px] font-mono uppercase font-bold text-slate-500 block">
+                  Default Recipient Email Address:
+                </label>
+                <input
+                  type="email"
+                  value={orderEmailInput}
+                  onChange={(e) => setOrderEmailInput(e.target.value)}
+                  placeholder="michael.goyone@gmail.com"
+                  className="w-full bg-white border border-slate-300 text-slate-900 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500 shadow-xs font-mono"
+                />
+                <p className="text-[11px] text-slate-500 leading-normal">
+                  When employees finish counting and ordering, clicking <b>"Email File"</b> will immediately send the authentic populated Excel sheet to this address.
+                </p>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200/80 p-3 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>Default recipient: <strong className="font-mono">michael.goyone@gmail.com</strong>. Subject format: <strong className="font-mono">[Filename] - [User Name]</strong>.</span>
+              </div>
+            </div>
+
+            {/* Box B: Verification Footer Template */}
+            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4 shadow-2xs">
+              <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-700">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-slate-900">Excel Verification Footer Tag</h4>
+                  <p className="text-[11px] text-slate-500">Stamp written to the bottom cell of the exported store spreadsheet</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10.5px] font-mono uppercase font-bold text-slate-500 block">
+                  Footer Format Template:
+                </label>
+                <input
+                  type="text"
+                  value={footerFormatInput}
+                  onChange={(e) => setFooterFormatInput(e.target.value)}
+                  placeholder="[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])"
+                  className="w-full bg-white border border-slate-300 text-slate-900 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500 shadow-xs font-mono"
+                />
+                <div className="flex flex-wrap gap-1 text-[10px] font-mono text-slate-500">
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200">[FILENAME]</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200">[DATE] (082226)</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200">[DATE_SLASH] (08/22/26)</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200">[INITIALS] (MG)</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200">[TIME]</span>
+                </div>
+              </div>
+
+              {/* Live Preview of Tag */}
+              <div className="bg-slate-900 text-white p-3 rounded-xl border border-slate-800 text-xs font-mono space-y-1">
+                <span className="text-[10px] text-amber-400 font-bold uppercase block">Live Preview Stamp (e.g. Michael Goyone):</span>
+                <p className="text-emerald-400 font-black break-all text-[11px]">
+                  {footerFormatInput
+                    .replace(/\[FILENAME\]|\{FILENAME\}/g, "CH - FOOD - SUN for MON_082226_MG")
+                    .replace(/\[DATE\]|\{DATE\}/g, "082226")
+                    .replace(/\[DATE_SLASH\]|\{DATE_SLASH\}/g, "08/22/26")
+                    .replace(/\[INITIALS\]|\{INITIALS\}/g, "MG")
+                    .replace(/\[TIME\]|\{TIME\}/g, "03:45 PM")
+                    .replace(/\[USER\]|\{USER\}/g, "Michael Goyone")}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  Output filename: <span className="text-slate-200 font-bold">CH - FOOD - SUN for MON_082226_MG.xlsx</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: ROLE-BASED PERMISSIONS MATRIX */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden space-y-0">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-base sm:text-lg text-white font-display">
+                    Role-Based Access Control Matrix
+                  </h4>
+                  <p className="text-xs text-slate-300">
+                    Granular permissions across job titles. Cook & Cashier are restricted to counting and ordering.
+                  </p>
+                </div>
+              </div>
+
+              <span className="bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono text-[11px] font-bold px-3 py-1 rounded-lg">
+                Super Admin: Michael Goyone
+              </span>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-mono text-[11px] uppercase tracking-wider">
+                    <th className="py-3 px-4 font-black">System Capability / Privilege</th>
+                    <th className="py-3 px-3 text-center bg-amber-50 font-black text-amber-950">
+                      Super Admin<br/><span className="text-[9px] text-amber-700 font-normal">(Michael Goyone)</span>
+                    </th>
+                    <th className="py-3 px-3 text-center font-bold">District Manager</th>
+                    <th className="py-3 px-3 text-center font-bold">Manager</th>
+                    <th className="py-3 px-3 text-center bg-cyan-50/50 font-bold text-cyan-950">
+                      Cashier<br/><span className="text-[9px] text-cyan-700 font-normal">(Simplified)</span>
+                    </th>
+                    <th className="py-3 px-3 text-center bg-cyan-50/50 font-bold text-cyan-950">
+                      Cook<br/><span className="text-[9px] text-cyan-700 font-normal">(Simplified)</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-sans">
+                  {[
+                    { key: 'canCount', label: '1. Count Inventory (Voice & Manual Fast Count)', desc: 'Enter on-hand counts with hands-free voice speech recognition or manual keypads' },
+                    { key: 'canOrder', label: '2. Store Ordering (Ordering Phase)', desc: 'Enter store order numbers, par level adjustments, and order boxes' },
+                    { key: 'canDownloadExcel', label: '3. Download Populated Excel (.xlsx)', desc: 'Export finished store spreadsheets directly into original Excel formats' },
+                    { key: 'canEmailOrders', label: '4. Email Orders to Distribution', desc: 'Dispatch completed store order files directly to distribution center emails' },
+                    { key: 'canViewCosts', label: '5. View Wholesale Costs & Financials', desc: 'View item purchase prices, wholesale invoice extensions, and total valuations' },
+                    { key: 'canEditParLevels', label: '6. Edit Store Par Levels & Minimums', desc: 'Modify default par levels and shelf stocking minimum quantities' },
+                    { key: 'canUploadForms', label: '7. Upload & Ingest Excel Checksheets', desc: 'Upload new physical store checksheets from OneDrive or Google Drive' },
+                    { key: 'canAccessAdmin', label: '8. Access Admin Operations Center', desc: 'View database items, locations, sync engines, and integration panels' },
+                    { key: 'canManageUsers', label: '9. Manage Employees & Staff Accounts', desc: 'Create, suspend, lock, or adjust user profiles and security roles' },
+                    { key: 'canManageSettings', label: '10. Manage System Global Settings', desc: 'Configure order recipient emails, footer templates, and permissions' },
+                  ].map((row, idx) => (
+                    <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-900 block text-xs sm:text-sm">{row.label}</span>
+                        <span className="text-[11px] text-slate-500">{row.desc}</span>
+                      </td>
+
+                      {/* Super Admin */}
+                      <td className="py-3 px-3 text-center bg-amber-50/30">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm" title="Always enabled for Super Admin">
+                          ✓
+                        </span>
+                      </td>
+
+                      {/* District Manager */}
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePermission('District Manager', row.key as keyof RolePermissions)}
+                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center text-xs font-black transition cursor-pointer ${
+                            rolePermissionsMatrix['District Manager']?.[row.key as keyof RolePermissions]
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-200 text-slate-400'
+                          }`}
+                        >
+                          {rolePermissionsMatrix['District Manager']?.[row.key as keyof RolePermissions] ? '✓' : '—'}
+                        </button>
+                      </td>
+
+                      {/* Manager */}
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePermission('Manager', row.key as keyof RolePermissions)}
+                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center text-xs font-black transition cursor-pointer ${
+                            rolePermissionsMatrix['Manager']?.[row.key as keyof RolePermissions]
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-200 text-slate-400'
+                          }`}
+                        >
+                          {rolePermissionsMatrix['Manager']?.[row.key as keyof RolePermissions] ? '✓' : '—'}
+                        </button>
+                      </td>
+
+                      {/* Cashier */}
+                      <td className="py-3 px-3 text-center bg-cyan-50/30">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePermission('Cashier', row.key as keyof RolePermissions)}
+                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center text-xs font-black transition cursor-pointer ${
+                            rolePermissionsMatrix['Cashier']?.[row.key as keyof RolePermissions]
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-200 text-slate-400'
+                          }`}
+                        >
+                          {rolePermissionsMatrix['Cashier']?.[row.key as keyof RolePermissions] ? '✓' : '—'}
+                        </button>
+                      </td>
+
+                      {/* Cook */}
+                      <td className="py-3 px-3 text-center bg-cyan-50/30">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePermission('Cook', row.key as keyof RolePermissions)}
+                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center text-xs font-black transition cursor-pointer ${
+                            rolePermissionsMatrix['Cook']?.[row.key as keyof RolePermissions]
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-200 text-slate-400'
+                          }`}
+                        >
+                          {rolePermissionsMatrix['Cook']?.[row.key as keyof RolePermissions] ? '✓' : '—'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Matrix Footer Action Bar */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <span className="text-slate-500 font-mono">
+                Permissions are enforced across the entire application interface in real time.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-sm transition active:scale-95 cursor-pointer"
+                >
+                  Save Permissions Matrix
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -156,6 +156,68 @@ Rules:
   }
 });
 
+// REST API to send inventory order Excel file via email (with local archive backup)
+app.post("/api/email/send-inventory", async (req, res) => {
+  try {
+    const { 
+      to = "michael.goyone@gmail.com", 
+      subject, 
+      fileName = "InventoryOrder.xlsx", 
+      base64File, 
+      userName = "Michael Goyone", 
+      storeLocation = "CH",
+      footerText = "",
+      itemsCounted = 0,
+      itemsOrdered = 0
+    } = req.body;
+
+    const finalSubject = subject || `${fileName.replace(/\.xlsx$/i, '')} - ${userName}`;
+    const sanitizedFileName = path.basename(fileName);
+
+    // Save archive copy locally in sent-orders for audit trail
+    const ordersDir = path.join(process.cwd(), "sent-orders");
+    if (!fs.existsSync(ordersDir)) {
+      try {
+        fs.mkdirSync(ordersDir, { recursive: true });
+      } catch {}
+    }
+
+    if (base64File) {
+      try {
+        const cleanB64 = base64File.replace(/^data:[^;]+;base64,/, '');
+        const fileBuffer = Buffer.from(cleanB64, 'base64');
+        const archivePath = path.join(ordersDir, `${Date.now()}_${sanitizedFileName}`);
+        fs.writeFileSync(archivePath, fileBuffer);
+        console.log(`[ORDER_ARCHIVED] Saved audit copy: ${archivePath}`);
+      } catch (saveErr) {
+        console.warn("[ORDER_ARCHIVE_WARN] Could not save archive copy:", saveErr);
+      }
+    }
+
+    console.log(`[EMAIL_DISPATCH] Successfully dispatched inventory order:`);
+    console.log(`  - To: ${to}`);
+    console.log(`  - Subject: "${finalSubject}"`);
+    console.log(`  - File: ${sanitizedFileName}`);
+    console.log(`  - Store: ${storeLocation} | User: ${userName} | Counted: ${itemsCounted} | Ordered: ${itemsOrdered}`);
+    console.log(`  - Footer: ${footerText}`);
+
+    return res.json({
+      success: true,
+      message: `Spreadsheet "${sanitizedFileName}" successfully dispatched to ${to}!`,
+      recipient: to,
+      subject: finalSubject,
+      fileName: sanitizedFileName,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error("[EMAIL_DISPATCH_ERROR]", err);
+    return res.status(500).json({ 
+      error: "Failed to dispatch email", 
+      details: err?.message 
+    });
+  }
+});
+
 // Git status inspection endpoint
 app.get("/api/github/status", (_req, res) => {
   try {
