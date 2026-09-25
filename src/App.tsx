@@ -4,7 +4,7 @@ import {
   MapPin, ShieldCheck, UserCheck, Search, ArrowLeft, Volume2, 
   Bell, FileDown, Lock, Mail, Users, Compass, AlertTriangle, 
   Layers, CheckCircle2, ChevronRight, User, Terminal, Camera, 
-  FolderGit2
+  FolderGit2, FileSpreadsheet
 } from 'lucide-react';
 
 import { UserRole, Location, InventoryItem, InventoryForm, FormSubmission } from './types';
@@ -17,11 +17,17 @@ import AdminPanels from './components/AdminPanels';
 import InventoryFormCounting from './components/InventoryFormCounting';
 import AppLogo from './components/AppLogo';
 import { GitHubPushModal } from './components/GitHubPushModal';
+import ExcelImportModal from './components/ExcelImportModal';
 
 export default function App() {
   // Dual-Platform Workspace view
   const [platformView, setPlatformView] = useState<'app_simulator' | 'android_code'>('app_simulator');
   const [showGitHubModal, setShowGitHubModal] = useState(false);
+  const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+
+  // Dynamic Forms and Items state (supports uploaded Excel inventory sheets)
+  const [formsList, setFormsList] = useState<InventoryForm[]>(sampleForms);
+  const [itemsList, setItemsList] = useState<InventoryItem[]>(sampleItems);
 
   // Interactive Web Client Router
   const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'forgot' | 'dashboard' | 'locations' | 'forms' | 'counting' | 'voice' | 'confirmation' | 'reports' | 'settings' | 'admin'>('splash');
@@ -37,6 +43,14 @@ export default function App() {
   const [selectedLocCode, setSelectedLocCode] = useState('AR'); // Selected Arlington Store
   const [selectedForm, setSelectedForm] = useState<InventoryForm>(sampleForms[0]);
   const [completedSubId, setCompletedSubId] = useState('');
+
+  // Handle successful Excel inventory sheet upload
+  const handleExcelImportSuccess = (newForm: InventoryForm, newItems: InventoryItem[]) => {
+    setFormsList(prev => [newForm, ...prev]);
+    setItemsList(prev => [...newItems, ...prev]);
+    setSelectedForm(newForm);
+    setCurrentScreen('counting');
+  };
 
   // Credentials verification states for the Portal UI
   const [loginEmail, setLoginEmail] = useState('');
@@ -131,6 +145,18 @@ export default function App() {
               <FileDown className="w-3.5 h-3.5" />
               <span>Download ZIP</span>
             </a>
+
+            {/* 📤 Upload Store Excel Sheet Button */}
+            <button
+              type="button"
+              onClick={() => setShowExcelImportModal(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-bold font-mono text-xs shadow-md transition border border-amber-300 cursor-pointer active:scale-95"
+              title="Upload your store Excel (.xlsx) inventory sheet"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 stroke-2" />
+              <span className="hidden sm:inline">Upload Excel</span>
+              <span className="sm:hidden">Excel</span>
+            </button>
 
             {/* Quick Platform Workspace View Mode Toggle */}
             <div className="flex items-center bg-slate-900 p-1 border border-slate-800 rounded-xl max-w-sm w-full sm:w-auto font-mono text-xs">
@@ -638,7 +664,7 @@ export default function App() {
             {currentScreen === 'forms' && (
               <div className="space-y-6">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-2">
                     <div>
                       <h3 className="text-lg font-bold text-slate-950 flex items-center gap-1.5">
                         <ClipboardList className="w-5.5 h-5.5 text-amber-500" /> Active Checksheets Audits
@@ -646,16 +672,27 @@ export default function App() {
                       <p className="text-xs text-slate-500 mt-0.5">Showing scheduled checklist audits for selected store outlet</p>
                     </div>
 
-                    <button 
-                      onClick={() => setCurrentScreen('locations')}
-                      className="p-1 px-3 border rounded text-xs text-slate-500 hover:bg-slate-50 flex items-center gap-1.5 font-bold"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" /> Back locations
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => setShowExcelImportModal(true)}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Upload Excel Sheet</span>
+                      </button>
+
+                      <button 
+                        onClick={() => setCurrentScreen('locations')}
+                        className="p-1 px-3 border rounded text-xs text-slate-500 hover:bg-slate-50 flex items-center gap-1.5 font-bold cursor-pointer"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back locations
+                      </button>
+                    </div>
                   </div>
 
                   <div className="divide-y space-y-3">
-                    {sampleForms.filter(f => f.locationCode === selectedLocCode).map((form) => {
+                    {formsList.filter(f => f.locationCode === selectedLocCode || f.locationCode === 'STORE' || f.locationCode === 'ALL' || !f.locationCode).map((form) => {
                       const isUserLinked = simUser.assignedForms.includes(form.id) || simUser.role === 'Super Admin' || simUser.role === 'Admin';
                       return (
                         <div key={form.id} className="py-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
@@ -686,6 +723,21 @@ export default function App() {
                         </div>
                       );
                     })}
+
+                    {formsList.filter(f => f.locationCode === selectedLocCode || f.locationCode === 'STORE' || f.locationCode === 'ALL' || !f.locationCode).length === 0 && (
+                      <div className="py-8 text-center text-slate-400">
+                        <FileSpreadsheet className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="font-bold text-sm text-slate-600">No scheduled checksheets found for this location</p>
+                        <p className="text-xs text-slate-400 mt-1">Upload an Excel (.xlsx) sheet to get started right away</p>
+                        <button
+                          type="button"
+                          onClick={() => setShowExcelImportModal(true)}
+                          className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" /> Upload Store Sheet
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -720,6 +772,7 @@ export default function App() {
                     setCurrentScreen('confirmation');
                   }}
                   activeVoiceParsedCmd={currentVoiceEmit}
+                  availableItems={itemsList}
                 />
               </div>
             )}
@@ -735,7 +788,7 @@ export default function App() {
                 </button>
 
                 <VoiceInventoryUI 
-                  availableItems={sampleItems}
+                  availableItems={itemsList}
                   onParsedUpdate={(itemName, quantity, unit) => {
                     // Update latest parsed update, triggers listener in InventoryFormCounting
                     setCurrentVoiceEmit({
@@ -1022,6 +1075,13 @@ export default function App() {
       <GitHubPushModal 
         isOpen={showGitHubModal} 
         onClose={() => setShowGitHubModal(false)} 
+      />
+
+      {/* Excel Sheet Import Modal */}
+      <ExcelImportModal
+        isOpen={showExcelImportModal}
+        onClose={() => setShowExcelImportModal(false)}
+        onImportSuccess={handleExcelImportSuccess}
       />
 
     </div>

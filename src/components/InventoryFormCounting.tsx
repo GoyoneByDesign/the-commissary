@@ -24,6 +24,7 @@ interface InventoryFormCountingProps {
   onBack: () => void;
   onSubmitSuccess: (submissionId: string) => void;
   activeVoiceParsedCmd?: { itemName: string; quantity: number; unit: string; timestamp: number } | null;
+  availableItems?: any[];
 }
 
 export default function InventoryFormCounting({
@@ -31,7 +32,8 @@ export default function InventoryFormCounting({
   currentUser,
   onBack,
   onSubmitSuccess,
-  activeVoiceParsedCmd
+  activeVoiceParsedCmd,
+  availableItems
 }: InventoryFormCountingProps) {
   // 🎯 Counting Phase: 'counting' (Fast count showing ONLY Item Name & Count) vs 'review' (Everything shown for checking)
   const [countingPhase, setCountingPhase] = useState<'counting' | 'review'>('counting');
@@ -251,10 +253,11 @@ export default function InventoryFormCounting({
 
   // Initialize the list of items for the form structure
   useEffect(() => {
+    const catalog = availableItems && availableItems.length > 0 ? availableItems : sampleItems;
     const freshMap: { [itemId: string]: SubmissionItem } = {};
     form.sections.forEach(section => {
       section.itemIds.forEach(id => {
-        const baseItem = sampleItems.find(item => item.id === id);
+        const baseItem = catalog.find((item: any) => item.id === id) || sampleItems.find(item => item.id === id);
         if (baseItem) {
           const currentCount = 0;
           const suggested = Math.max(0, baseItem.defaultParLevel - currentCount);
@@ -284,7 +287,7 @@ export default function InventoryFormCounting({
       });
     });
     setItemsMap(freshMap);
-  }, [form]);
+  }, [form, availableItems]);
 
   // Hook into active voice command parsing (emitted by VoiceInventoryUI)
   useEffect(() => {
@@ -402,35 +405,41 @@ export default function InventoryFormCounting({
     }));
   };
 
-  // ➕ Quick increment / decrement helpers for Fast Counting Mode
+  // ➕ Quick increment / decrement helpers for Fast Counting Mode (with clean floating point precision)
   const handleIncrementCount = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.currentCount || 0;
-    handleCountChange(itemId, String(Math.max(0, cur + step)));
+    const nextVal = Math.round(Math.max(0, cur + step) * 100) / 100;
+    handleCountChange(itemId, String(nextVal));
   };
 
   const handleDecrementCount = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.currentCount || 0;
-    handleCountChange(itemId, String(Math.max(0, cur - step)));
+    const nextVal = Math.round(Math.max(0, cur - step) * 100) / 100;
+    handleCountChange(itemId, String(nextVal));
   };
 
   const handleIncrementWlkIn = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.wlkInCount || 0;
-    handleWlkInChange(itemId, String(Math.max(0, cur + step)));
+    const nextVal = Math.round(Math.max(0, cur + step) * 100) / 100;
+    handleWlkInChange(itemId, String(nextVal));
   };
 
   const handleDecrementWlkIn = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.wlkInCount || 0;
-    handleWlkInChange(itemId, String(Math.max(0, cur - step)));
+    const nextVal = Math.round(Math.max(0, cur - step) * 100) / 100;
+    handleWlkInChange(itemId, String(nextVal));
   };
 
   const handleIncrementBar = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.barCount || 0;
-    handleBarCountChange(itemId, String(Math.max(0, cur + step)));
+    const nextVal = Math.round(Math.max(0, cur + step) * 100) / 100;
+    handleBarCountChange(itemId, String(nextVal));
   };
 
   const handleDecrementBar = (itemId: string, step: number = 1) => {
     const cur = itemsMap[itemId]?.barCount || 0;
-    handleBarCountChange(itemId, String(Math.max(0, cur - step)));
+    const nextVal = Math.round(Math.max(0, cur - step) * 100) / 100;
+    handleBarCountChange(itemId, String(nextVal));
   };
 
   // 🔊 Audio speak-back confirmation for hands-free counting
@@ -447,25 +456,88 @@ export default function InventoryFormCounting({
     }
   };
 
-  // Extract numeric quantity from spoken sentence (digits, word numbers, fractions)
+  // Extract numeric quantity from spoken sentence (digits, decimals, fractions, word numbers)
   const extractQuantityFromSpeech = (spokenText: string): number | null => {
-    const lower = spokenText.toLowerCase();
+    let lower = spokenText.toLowerCase();
 
-    // 1. Direct digits (e.g. "5", "5.5", "12 cases")
-    const digitMatch = lower.match(/\b\d+(?:\.\d+)?\b/);
-    if (digitMatch) {
-      return parseFloat(digitMatch[0]);
+    // 0. Written fraction formats (e.g. "1 1/2", "1 1/4", "1 3/4", "1/2", "1/4", "3/4")
+    lower = lower.replace(/\b1\s+1\/2\b/g, '1.5');
+    lower = lower.replace(/\b1\s+1\/4\b/g, '1.25');
+    lower = lower.replace(/\b1\s+3\/4\b/g, '1.75');
+    lower = lower.replace(/\b2\s+1\/2\b/g, '2.5');
+    lower = lower.replace(/\b2\s+1\/4\b/g, '2.25');
+    lower = lower.replace(/\b2\s+3\/4\b/g, '2.75');
+    lower = lower.replace(/\b3\s+1\/2\b/g, '3.5');
+    lower = lower.replace(/\b3\s+1\/4\b/g, '3.25');
+    lower = lower.replace(/\b3\s+3\/4\b/g, '3.75');
+    lower = lower.replace(/\b1\/2\b/g, '0.5');
+    lower = lower.replace(/\b1\/4\b/g, '0.25');
+    lower = lower.replace(/\b3\/4\b/g, '0.75');
+
+    // 1. Spoken verbal fractions (e.g. "one and a half", "one and three quarters", "one and a quarter")
+    const fractionsMap: [RegExp, number][] = [
+      // .75 (three quarters)
+      [/\b(?:four|4)\s+and\s+(?:three\s+quarters?|three\s+fourths?)\b/i, 4.75],
+      [/\b(?:three|3)\s+and\s+(?:three\s+quarters?|three\s+fourths?)\b/i, 3.75],
+      [/\b(?:two|2)\s+and\s+(?:three\s+quarters?|three\s+fourths?)\b/i, 2.75],
+      [/\b(?:one|1)\s+and\s+(?:three\s+quarters?|three\s+fourths?)\b/i, 1.75],
+      [/\b(?:three\s+quarters?|three\s+fourths?)\b/i, 0.75],
+
+      // .5 (half)
+      [/\b(?:five|5)\s+and\s+(?:a\s+)?half\b/i, 5.5],
+      [/\b(?:four|4)\s+and\s+(?:a\s+)?half\b/i, 4.5],
+      [/\b(?:three|3)\s+and\s+(?:a\s+)?half\b/i, 3.5],
+      [/\b(?:two|2)\s+and\s+(?:a\s+)?half\b/i, 2.5],
+      [/\b(?:one|1)\s+and\s+(?:a\s+)?half\b/i, 1.5],
+      [/\b(?:half\s+a\s+case|half\s+case|half)\b/i, 0.5],
+
+      // .25 (quarter)
+      [/\b(?:four|4)\s+and\s+(?:a\s+)?(?:quarter|one\s+quarter)\b/i, 4.25],
+      [/\b(?:three|3)\s+and\s+(?:a\s+)?(?:quarter|one\s+quarter)\b/i, 3.25],
+      [/\b(?:two|2)\s+and\s+(?:a\s+)?(?:quarter|one\s+quarter)\b/i, 2.25],
+      [/\b(?:one|1)\s+and\s+(?:a\s+)?(?:quarter|one\s+quarter)\b/i, 1.25],
+      [/\b(?:a\s+quarter|one\s+quarter|quarter\s+case|quarter)\b/i, 0.25],
+    ];
+
+    for (const [regex, val] of fractionsMap) {
+      if (regex.test(lower)) {
+        return val;
+      }
     }
 
-    // 2. Fractions and half amounts
-    if (/\bhalf\b/i.test(lower)) {
-      if (/\bthree\s+and\s+a\s+half\b/i.test(lower) || /\b3\s+and\s+a\s+half\b/i.test(lower)) return 3.5;
-      if (/\btwo\s+and\s+a\s+half\b/i.test(lower) || /\b2\s+and\s+a\s+half\b/i.test(lower)) return 2.5;
-      if (/\bone\s+and\s+a\s+half\b/i.test(lower) || /\b1\s+and\s+a\s+half\b/i.test(lower)) return 1.5;
-      return 0.5;
+    // 2. Spoken decimals with "point" (e.g. "one point five", "one point seven five", "1 point 75", "point 5")
+    const wordNums: Record<string, string> = {
+      zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+      six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+      eleven: '11', twelve: '12', fifteen: '15', twenty: '20'
+    };
+
+    // Replace spoken "X point Y"
+    for (const [w, d] of Object.entries(wordNums)) {
+      lower = lower.replace(new RegExp(`\\b${w}\\s+point\\s+(?:seventy\\s+five|seven\\s+five)\\b`, 'gi'), `${d}.75`);
+      lower = lower.replace(new RegExp(`\\b${w}\\s+point\\s+(?:twenty\\s+five|two\\s+five)\\b`, 'gi'), `${d}.25`);
+      lower = lower.replace(new RegExp(`\\b${w}\\s+point\\s+five\\b`, 'gi'), `${d}.5`);
+      lower = lower.replace(new RegExp(`\\b${w}\\s+point\\s+(\\d+)\\b`, 'gi'), `${d}.$1`);
     }
 
-    // 3. Word numbers
+    // Direct "point seventy five" / "point seven five" -> 0.75
+    lower = lower.replace(/\b(?:zero\s+)?point\s+(?:seventy\s+five|seven\s+five)\b/gi, '0.75');
+    lower = lower.replace(/\b(?:zero\s+)?point\s+(?:twenty\s+five|two\s+five)\b/gi, '0.25');
+    lower = lower.replace(/\b(?:zero\s+)?point\s+five\b/gi, '0.5');
+    lower = lower.replace(/\b(?:zero\s+)?point\s+(\\d+)\b/gi, '0.$1');
+
+    // 3. Direct numeric digits (supports decimals e.g. "1.5", "1.75", "1.25", "0.5", "0.25", "5")
+    const decimalMatch = lower.match(/(?:\b|\s)(\d*\.\d+)\b/);
+    if (decimalMatch) {
+      return parseFloat(decimalMatch[1]);
+    }
+
+    const wholeDigitMatch = lower.match(/\b\d+\b/);
+    if (wholeDigitMatch) {
+      return parseFloat(wholeDigitMatch[0]);
+    }
+
+    // 4. Word numbers (whole numbers like "one", "two", "twenty five")
     const numberWords: Record<string, number> = {
       zero: 0,
       none: 0,
@@ -528,26 +600,26 @@ export default function InventoryFormCounting({
     return null;
   };
 
-  // Detect phrasing grammar order (e.g. "5 cases of chicken" vs "case chicken 5" vs "5 chicken cases" vs "chicken 5")
+  // Detect phrasing grammar order (e.g. "1.5 cases of chicken" vs "case chicken 1.75" vs "1.25 chicken cases" vs "chicken 1.5")
   const detectPhrasingOrder = (spokenText: string): 'qty_unit_item' | 'unit_item_qty' | 'qty_item_unit' | 'item_qty' | 'adaptive' => {
     const lower = spokenText.toLowerCase();
     const hasUnit = /\b(case|cases|box|boxes|bag|bags|can|cans|pack|packs|sleeve|sleeves|bottle|bottles|lb|lbs|pound|pounds)\b/i.test(lower);
-    const digitAtStart = /^\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half)/i.test(lower);
-    const digitAtEnd = /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half)\s*$/i.test(lower);
+    const digitAtStart = /^\s*(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half|quarter|point)/i.test(lower);
+    const digitAtEnd = /(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half|quarter)\s*$/i.test(lower);
     const unitAtStart = /^\s*(case|cases|box|boxes|bag|bags|can|cans|pack|packs)/i.test(lower);
     const unitAtEnd = /(case|cases|box|boxes|bag|bags|can|cans|pack|packs)\s*$/i.test(lower);
 
     if (digitAtStart && hasUnit && !unitAtEnd) {
-      return 'qty_unit_item'; // e.g. "5 cases of chicken breast"
+      return 'qty_unit_item'; // e.g. "1.5 cases of chicken breast"
     }
     if (unitAtStart && digitAtEnd) {
-      return 'unit_item_qty'; // e.g. "Case chicken breast 5"
+      return 'unit_item_qty'; // e.g. "Case chicken breast 1.75"
     }
     if (digitAtStart && unitAtEnd) {
-      return 'qty_item_unit'; // e.g. "5 chicken breast cases"
+      return 'qty_item_unit'; // e.g. "1.25 chicken breast cases"
     }
     if (digitAtEnd) {
-      return 'item_qty'; // e.g. "Chicken breast 5"
+      return 'item_qty'; // e.g. "Chicken breast 1.5"
     }
     return 'adaptive';
   };
@@ -1745,26 +1817,33 @@ export default function InventoryFormCounting({
                   <span className="text-slate-400 uppercase text-[9px] font-bold shrink-0">Try Voice Commands:</span>
                   <button
                     type="button"
-                    onClick={() => handleProcessSpokenText(`5 cases of ${displayedItems[0]?.name || 'Chicken Breast'}`)}
+                    onClick={() => handleProcessSpokenText(`1.5 cases of ${displayedItems[0]?.name || 'Chicken Breast'}`)}
                     className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 rounded-lg transition cursor-pointer"
                   >
-                    "5 cases of {displayedItems[0]?.name || 'Chicken Breast'}"
+                    "1.5 cases of {displayedItems[0]?.name || 'Chicken Breast'}"
                   </button>
                   {displayedItems[1] && (
                     <button
                       type="button"
-                      onClick={() => handleProcessSpokenText(displayedItems[1].name)}
+                      onClick={() => handleProcessSpokenText(`Case ${displayedItems[1].name} 1.75`)}
                       className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 rounded-lg transition cursor-pointer"
                     >
-                      Skip to: "{displayedItems[1].name}"
+                      "Case {displayedItems[1].name} 1.75"
                     </button>
                   )}
                   <button
                     type="button"
-                    onClick={() => handleProcessSpokenText("4")}
+                    onClick={() => handleProcessSpokenText("1.25")}
                     className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg transition cursor-pointer"
                   >
-                    Say count only: "4"
+                    Say decimal count: "1.25"
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleProcessSpokenText("one and a half")}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-teal-300 border border-teal-500/30 rounded-lg transition cursor-pointer"
+                  >
+                    Say fraction: "one and a half"
                   </button>
                   {isBarSheet && (
                     <button
@@ -2014,55 +2093,85 @@ export default function InventoryFormCounting({
                         </div>
                       </div>
                     ) : (
-                      // Standard single count input with big + and - touch buttons + RED WAITING OUTLINE
-                      <div className="relative flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                        {/* Red pulsating badge waiting for number */}
-                        {isVoiceActive && (
-                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap z-20">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse shadow-md flex items-center gap-1.5 border border-white">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                              WAITING FOR NUMBER
-                            </span>
-                          </div>
-                        )}
+                      // Standard single count input with big + and - touch buttons + fractional quick chips + RED WAITING OUTLINE
+                      <div className="flex flex-col items-end gap-1.5 shrink-0 self-end sm:self-center">
+                        <div className="relative flex items-center gap-1.5">
+                          {/* Red pulsating badge waiting for number */}
+                          {isVoiceActive && (
+                            <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap z-20">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse shadow-md flex items-center gap-1.5 border border-white">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                                WAITING FOR NUMBER
+                              </span>
+                            </div>
+                          )}
 
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDecrementCount(item.itemId, 1); }}
-                          className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 font-black text-base flex items-center justify-center transition border border-slate-300 touch-manipulation cursor-pointer"
-                          title="Subtract 1"
-                        >
-                          <Minus className="w-4 h-4 stroke-3" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDecrementCount(item.itemId, 1); }}
+                            className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 font-black text-base flex items-center justify-center transition border border-slate-300 touch-manipulation cursor-pointer"
+                            title="Subtract 1"
+                          >
+                            <Minus className="w-4 h-4 stroke-3" />
+                          </button>
 
-                        <input
-                          ref={(el) => { inputRefs.current[item.itemId] = el; }}
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={item.currentCount === 0 ? '' : item.currentCount}
-                          onChange={(e) => handleCountChange(item.itemId, e.target.value)}
-                          onFocus={() => {
-                            if (countInputMethod === 'voice') {
-                              setActiveVoiceItemId(item.itemId);
-                            }
-                          }}
-                          placeholder="0"
-                          className={`w-20 sm:w-24 h-11 text-center font-mono font-black text-xl rounded-xl transition cursor-text ${
-                            isVoiceActive
-                              ? 'bg-rose-50 text-rose-950 border-4 border-rose-600 ring-4 ring-rose-400/60 animate-pulse shadow-inner focus:outline-none'
-                              : 'bg-emerald-100 text-emerald-950 border-2 border-emerald-400 focus:bg-white focus:outline-none focus:border-emerald-600'
-                          }`}
-                        />
+                          <input
+                            ref={(el) => { inputRefs.current[item.itemId] = el; }}
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.currentCount === 0 ? '' : item.currentCount}
+                            onChange={(e) => handleCountChange(item.itemId, e.target.value)}
+                            onFocus={() => {
+                              if (countInputMethod === 'voice') {
+                                setActiveVoiceItemId(item.itemId);
+                              }
+                            }}
+                            placeholder="0"
+                            className={`w-20 sm:w-24 h-11 text-center font-mono font-black text-xl rounded-xl transition cursor-text ${
+                              isVoiceActive
+                                ? 'bg-rose-50 text-rose-950 border-4 border-rose-600 ring-4 ring-rose-400/60 animate-pulse shadow-inner focus:outline-none'
+                                : 'bg-emerald-100 text-emerald-950 border-2 border-emerald-400 focus:bg-white focus:outline-none focus:border-emerald-600'
+                            }`}
+                          />
 
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 1); }}
-                          className="w-11 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-base flex items-center justify-center transition shadow-sm touch-manipulation cursor-pointer"
-                          title="Add 1"
-                        >
-                          <Plus className="w-4 h-4 stroke-3" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 1); }}
+                            className="w-11 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-base flex items-center justify-center transition shadow-sm touch-manipulation cursor-pointer"
+                            title="Add 1"
+                          >
+                            <Plus className="w-4 h-4 stroke-3" />
+                          </button>
+                        </div>
+
+                        {/* Quick Decimal / Fractional Touch Buttons */}
+                        <div className="flex items-center gap-1 font-mono text-[10px]">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 0.25); }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold border border-slate-300 transition cursor-pointer"
+                            title="Add 0.25 (Quarter Case)"
+                          >
+                            +¼ (.25)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 0.5); }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold border border-slate-300 transition cursor-pointer"
+                            title="Add 0.5 (Half Case)"
+                          >
+                            +½ (.50)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleIncrementCount(item.itemId, 0.75); }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold border border-slate-300 transition cursor-pointer"
+                            title="Add 0.75 (Three-Quarters Case)"
+                          >
+                            +¾ (.75)
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2532,6 +2641,7 @@ export default function InventoryFormCounting({
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             value={item.finalOrder === 0 ? '' : item.finalOrder}
                             onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
                             placeholder="0"
@@ -2552,7 +2662,7 @@ export default function InventoryFormCounting({
                             <input
                               type="number"
                               min="0"
-                              step={isKeg ? "0.5" : "1"}
+                              step="any"
                               value={item.wlkInCount === 0 ? '' : item.wlkInCount}
                               onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
                               placeholder="0"
@@ -2571,7 +2681,7 @@ export default function InventoryFormCounting({
                             <input
                               type="number"
                               min="0"
-                              step={isKeg ? "0.5" : "1"}
+                              step="any"
                               value={item.barCount === 0 ? '' : item.barCount}
                               onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
                               placeholder="0"
@@ -2605,6 +2715,7 @@ export default function InventoryFormCounting({
                             <input
                               type="number"
                               min="0"
+                              step="any"
                               value={item.currentCount === 0 ? '' : item.currentCount}
                               onChange={(e) => handleCountChange(item.itemId, e.target.value)}
                               placeholder="0"
@@ -2827,7 +2938,7 @@ export default function InventoryFormCounting({
                               <input
                                 type="number"
                                 min="0"
-                                step={isKeg ? "0.5" : "1"}
+                                step="any"
                                 value={item.wlkInCount === 0 ? '' : item.wlkInCount}
                                 onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
                                 placeholder="0"
@@ -2844,7 +2955,7 @@ export default function InventoryFormCounting({
                               <input
                                 type="number"
                                 min="0"
-                                step={isKeg ? "0.5" : "1"}
+                                step="any"
                                 value={item.barCount === 0 ? '' : item.barCount}
                                 onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
                                 placeholder="0"
@@ -2878,6 +2989,7 @@ export default function InventoryFormCounting({
                             <input
                               type="number"
                               min="0"
+                              step="any"
                               value={item.currentCount === 0 ? '' : item.currentCount}
                               onChange={(e) => handleCountChange(item.itemId, e.target.value)}
                               placeholder="0"
@@ -2907,6 +3019,7 @@ export default function InventoryFormCounting({
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             value={item.finalOrder === 0 ? '' : item.finalOrder}
                             onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}
                             placeholder="0"
@@ -3063,7 +3176,7 @@ export default function InventoryFormCounting({
                         <input
                           type="number"
                           min="0"
-                          step={isKeg ? "0.5" : "1"}
+                          step="any"
                           placeholder="0"
                           value={item.wlkInCount === 0 ? '' : item.wlkInCount}
                           onChange={(e) => handleWlkInChange(item.itemId, e.target.value)}
@@ -3081,7 +3194,7 @@ export default function InventoryFormCounting({
                         <input
                           type="number"
                           min="0"
-                          step={isKeg ? "0.5" : "1"}
+                          step="any"
                           placeholder="0"
                           value={item.barCount === 0 ? '' : item.barCount}
                           onChange={(e) => handleBarCountChange(item.itemId, e.target.value)}
@@ -3098,6 +3211,7 @@ export default function InventoryFormCounting({
                         <input
                           type="number"
                           min="0"
+                          step="any"
                           placeholder="0"
                           value={item.currentCount === 0 ? '' : item.currentCount}
                           onChange={(e) => handleCountChange(item.itemId, e.target.value)}
@@ -3111,6 +3225,7 @@ export default function InventoryFormCounting({
                         <input
                           type="number"
                           min="0"
+                          step="any"
                           placeholder="0"
                           value={item.finalOrder === 0 ? '' : item.finalOrder}
                           onChange={(e) => handleFinalOrderChange(item.itemId, e.target.value)}

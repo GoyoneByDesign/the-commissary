@@ -79,6 +79,7 @@ export interface InventoryItem {
   casePackDetails?: string;
   requiresDating?: boolean;
   size?: string;
+  storageLocation?: string;
 }
 
 export interface Vendor {

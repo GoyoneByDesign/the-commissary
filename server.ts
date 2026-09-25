@@ -114,7 +114,8 @@ ${JSON.stringify((availableItemNames || []).slice(0, 80))}
 
 Your task is to identify which items were mentioned and what count or quantity was given.
 Rules:
-- Flexibly handle ANY word ordering (e.g. "5 cases of chicken breast", "Case chicken breast 5", "5 chicken breast cases", "chicken breast 5").
+- Flexibly handle ANY word ordering (e.g. "1.5 cases of chicken breast", "Case chicken breast 1.75", "1.25 chicken breast cases", "chicken breast 1.5").
+- COUNTS ARE VERY COMMONLY DECIMAL OR FRACTIONAL NUMBERS (e.g. 1.5, 1.75, 1.25, 0.5, 0.25, 0.75, 2.5, 3.5). The employee may say "one point five", "1.5", "1.75", "one and a half", "one and three quarters", "one point seven five", "point five", "half a case", "quarter case". Return the exact numeric decimal (e.g. 1.5, 1.75, 1.25) in count, NEVER round or truncate to integer!
 - Match spoken item phrases even with thick accents, typos, background kitchen noise, or shorthand (e.g., "cheeken" or "pollo" -> "Chicken Breast", "chori" or "choriso" -> "CHORIZO", "tortias" -> "FLOUR TORTILLAS 12\"").
 - If walk-in and bar counts are mentioned (e.g., "Corona 8 walk in and 3 bar"), return wlkInCount: 8, barCount: 3, and count: 11.
 - Identify the speech pattern used: 'qty_unit_item' | 'unit_item_qty' | 'qty_item_unit' | 'item_qty'.
@@ -123,7 +124,7 @@ Rules:
   "matches": [
     {
       "matchedItemName": "exact item name from candidate list",
-      "count": 5,
+      "count": 1.5,
       "wlkInCount": null,
       "barCount": null,
       "unit": "case",
