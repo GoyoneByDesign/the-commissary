@@ -49,29 +49,75 @@ app.get(["/api/download-zip", "/the-commissary-project.zip"], (_req, res) => {
   return res.status(404).json({ error: "ZIP package is currently being generated. Please retry in a few seconds." });
 });
 
-// REST API to parse spoken inventory counts with Google Gemini AI
+// In-memory cache for user speech learning profiles
+const serverVoiceProfilesMap = new Map<string, any>();
+
+// REST API to get or save user speech adaptation profile
+app.get("/api/user/voice-profile/:userId", (req, res) => {
+  const { userId } = req.params;
+  const profile = serverVoiceProfilesMap.get(userId);
+  if (profile) {
+    return res.json(profile);
+  }
+  return res.json({ found: false });
+});
+
+app.post("/api/user/voice-profile", (req, res) => {
+  const profile = req.body;
+  if (!profile || !profile.userId) {
+    return res.status(400).json({ error: "Invalid user voice profile payload." });
+  }
+  serverVoiceProfilesMap.set(profile.userId, profile);
+  return res.json({ success: true, message: `Voice profile for user ${profile.userId} updated.` });
+});
+
+// REST API to parse spoken inventory counts with Personalized Google Gemini AI
 app.post("/api/ai/voice-parse", async (req, res) => {
   try {
-    const { spokenText, availableItemNames } = req.body;
+    const { spokenText, availableItemNames, userVoiceProfile } = req.body;
     if (!spokenText || typeof spokenText !== "string") {
       return res.status(400).json({ error: "Spoken transcript text is required." });
     }
 
     const ai = getAiClient();
     if (!ai) {
-      return res.json({ matches: [], notice: "Gemini API key not configured, local NLP parser active" });
+      return res.json({ 
+        matches: [], 
+        notice: "Gemini API key not configured, local adaptive NLP parser active" 
+      });
     }
 
-    const prompt = `You are an AI inventory voice assistant in a restaurant commissary/warehouse.
+    // Build personalized user context for Gemini in-context few-shot learning
+    const userContext = userVoiceProfile ? `
+PERSONALIZED VOICE & SPEECH PROFILE FOR USER: "${userVoiceProfile.userName}" (ID: ${userVoiceProfile.userId}):
+- Accent / Dialect: ${userVoiceProfile.accentDialect || 'Standard'}
+- Vocal Pitch / Tone: ${userVoiceProfile.pitchTone || 'Normal'}
+- Speaking Pace: ${userVoiceProfile.speechRate || 'Normal'}
+- Preferred Phrasing Order: ${userVoiceProfile.preferredGrammar || 'Adaptive'}
+- Observed User Speech Habits:
+  ${(userVoiceProfile.phrasingHabits || []).map((h: string) => `  * ${h}`).join('\n')}
+- Personal Nicknames & Phonetic Mappings:
+  ${JSON.stringify(userVoiceProfile.vocabularyAliases || {})}
+NOTE: This specific employee may speak in any of these phrasing permutations:
+1. Quantity -> Unit -> Item: "5 cases of Chicken Breast", "3 bags of Chorizo"
+2. Unit -> Item -> Quantity: "Case Chicken Breast 5", "Bag Chorizo 4"
+3. Quantity -> Item -> Unit: "5 Chicken Breast Cases", "4 Chorizo Bags"
+4. Item -> Quantity: "Chicken Breast 5", "Chorizo 4"
+Adapt directly to their accent, higher/lower pitch, and word order!
+` : '';
+
+    const prompt = `You are a super-intelligent AI inventory voice assistant in a restaurant commissary/warehouse.
 A kitchen or bar employee just spoke this command while counting inventory: "${spokenText}".
+${userContext}
 Here is the list of available item names from the current sheet:
 ${JSON.stringify((availableItemNames || []).slice(0, 80))}
 
 Your task is to identify which items were mentioned and what count or quantity was given.
 Rules:
-- Match spoken item phrases even with typos, accents, or shorthand (e.g., "cheeken" -> "Chicken Breast", "carnitas five" -> "Carnitas", count 5).
+- Flexibly handle ANY word ordering (e.g. "5 cases of chicken breast", "Case chicken breast 5", "5 chicken breast cases", "chicken breast 5").
+- Match spoken item phrases even with thick accents, typos, background kitchen noise, or shorthand (e.g., "cheeken" or "pollo" -> "Chicken Breast", "chori" or "choriso" -> "CHORIZO", "tortias" -> "FLOUR TORTILLAS 12\"").
 - If walk-in and bar counts are mentioned (e.g., "Corona 8 walk in and 3 bar"), return wlkInCount: 8, barCount: 3, and count: 11.
-- If multiple items are in one sentence, extract all of them.
+- Identify the speech pattern used: 'qty_unit_item' | 'unit_item_qty' | 'qty_item_unit' | 'item_qty'.
 - Return ONLY valid JSON with this exact structure:
 {
   "matches": [
@@ -80,9 +126,17 @@ Rules:
       "count": 5,
       "wlkInCount": null,
       "barCount": null,
-      "spokenPhrase": "phrase snippet spoken"
+      "unit": "case",
+      "spokenPhrase": "phrase snippet spoken",
+      "patternDetected": "qty_unit_item",
+      "learnedAlias": null
     }
-  ]
+  ],
+  "speechAnalysis": {
+    "detectedPattern": "qty_unit_item",
+    "toneDetected": "normal",
+    "adaptationNote": "Successfully parsed order"
+  }
 }`;
 
     const response = await ai.models.generateContent({

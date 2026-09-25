@@ -1,5 +1,22 @@
 export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Employee';
 
+export interface UserVoiceProfile {
+  userId: string;
+  userName: string;
+  accentDialect: 'standard' | 'hispanic_latino' | 'fast_kitchen' | 'southern' | 'custom';
+  pitchTone: 'normal' | 'higher' | 'deep' | 'soft' | 'loud';
+  speechRate: 'normal' | 'fast' | 'deliberate';
+  preferredGrammar: 'qty_unit_item' | 'item_qty' | 'unit_item_qty' | 'qty_item_unit' | 'adaptive';
+  phrasingHabits: string[];
+  vocabularyAliases: Record<string, string>;
+  totalVoiceInputs: number;
+  successfulMatches: number;
+  accuracyRatePct: number;
+  calibrated: boolean;
+  calibrationSamples?: { spoken: string; matchedItem: string; quantity: number }[];
+  lastCalibratedAt?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -9,6 +26,7 @@ export interface User {
   assignedForms: string[];     // List of form ids
   isSuspended?: boolean;
   isLocked?: boolean;
+  voiceProfile?: UserVoiceProfile;
 }
 
 export interface Location {
