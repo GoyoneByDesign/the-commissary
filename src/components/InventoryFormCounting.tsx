@@ -819,7 +819,42 @@ export default function InventoryFormCounting({
     }
   };
 
-  const handleSelectOrderMethod = (method: 'manual' | 'voice') => {
+  const handleApplyAllSuggestedOrders = () => {
+    setItemsMap(prev => {
+      const updated: Record<string, SubmissionItem> = {};
+      for (const [id, rawItem] of Object.entries(prev)) {
+        const item = rawItem as SubmissionItem;
+        const suggested = Math.max(0, (item.parLevel || 0) - (item.currentCount || 0));
+        updated[id] = {
+          ...item,
+          suggestedOrder: suggested,
+          finalOrder: suggested,
+          total: (item.currentCount || 0) + suggested,
+          isChecked: true
+        };
+      }
+      return updated;
+    });
+    setVoiceActionNotice("✨ Applied Suggested Orders (Par Level − Inventory) to all items!");
+    speakFeedback("Applied suggested orders to all items.");
+  };
+
+  const handleSelectOrderMethod = (method: 'suggested' | 'manual' | 'voice') => {
+    if (method === 'suggested') {
+      handleApplyAllSuggestedOrders();
+      setOrderInputMethod('manual');
+      setCountingPhase('ordering');
+      setActiveModalPrompt('none');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (isVoiceListening && recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        setIsVoiceListening(false);
+      }
+      setVoiceActionNotice("✨ Applied Suggested Orders (Par Level − Inventory) to all items! Review or click Save & Finish.");
+      speakFeedback("Applied suggested order to all items. Review or tap Save.");
+      return;
+    }
+
     setOrderInputMethod(method);
     setCountingPhase('ordering');
     setActiveModalPrompt('none');
@@ -1002,6 +1037,10 @@ export default function InventoryFormCounting({
     }
 
     if (currentPrompt === 'ready_to_order') {
+      if (/\b(suggested|use suggested|use that|theo|theoretical)\b/i.test(lower)) {
+        handleSelectOrderMethod('suggested');
+        return;
+      }
       if (/\b(yes|yeah|yep|si|sí|sure|order|ready|ok|okay)\b/i.test(lower)) {
         handleConfirmReadyToOrder();
         return;
@@ -1013,12 +1052,16 @@ export default function InventoryFormCounting({
     }
 
     if (currentPrompt === 'select_order_method') {
-      if (/\b(manual|hand|type|keyboard)\b/i.test(lower)) {
-        handleSelectOrderMethod('manual');
+      if (/\b(suggested|suggest|use that|use suggested|theo|theoretical|auto|automatic|recommended|yes|si|sí|1|one)\b/i.test(lower)) {
+        handleSelectOrderMethod('suggested');
         return;
       }
-      if (/\b(voice|speech|talk|speak|handsfree)\b/i.test(lower)) {
+      if (/\b(voice|speech|talk|speak|handsfree|2|two)\b/i.test(lower)) {
         handleSelectOrderMethod('voice');
+        return;
+      }
+      if (/\b(manual|hand|type|keyboard|3|three)\b/i.test(lower)) {
+        handleSelectOrderMethod('manual');
         return;
       }
     }
@@ -1074,6 +1117,27 @@ export default function InventoryFormCounting({
     // C. ORDERING PHASE VOICE ENTRY (Fills Final Order & Advances Down)
     // =========================================================================
     if (currentPhase === 'ordering') {
+      // 1. Spoken command to apply suggested order to all
+      if (/\b(use\s+all\s+suggested|apply\s+all\s+suggested|all\s+suggested|use\s+suggested\s+for\s+all)\b/i.test(lower)) {
+        handleApplyAllSuggestedOrders();
+        setVoiceActionNotice("✨ Applied Suggested Orders to all items!");
+        speakFeedback("Applied suggested order to all items.");
+        return;
+      }
+
+      // 2. Spoken command to use suggested order for active item
+      if (/\b(use\s+suggested|suggested|suggested\s+order|use\s+that|take\s+suggested|same)\b/i.test(lower)) {
+        const itemToUpdate = currentActiveItem;
+        if (itemToUpdate) {
+          const theo = Math.max(0, (itemToUpdate.parLevel || 0) - (itemToUpdate.currentCount || 0));
+          handleFinalOrderChange(itemToUpdate.itemId, String(theo));
+          setVoiceActionNotice(`✓ Set Order for "${itemToUpdate.name}" to suggested (${theo})`);
+          speakFeedback(`${itemToUpdate.name}: order ${theo}`);
+          advanceToNextOrderItem(itemToUpdate.itemId);
+          return;
+        }
+      }
+
       const extractedCount = extractQuantityFromSpeech(cleanSpoken);
       const matchedItem = findBestMatchingItem(cleanSpoken, displayed, allItems);
 
@@ -3612,6 +3676,18 @@ export default function InventoryFormCounting({
             )}
           </button>
 
+          {/* Quick Use Suggested Order Button */}
+          <button
+            type="button"
+            onClick={() => handleSelectOrderMethod('suggested')}
+            className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-5 py-3.5 rounded-xl text-xs uppercase cursor-pointer tracking-wider shadow-md hover:shadow-amber-200 active:scale-[0.98] transition"
+            title="Auto-fill all items with Suggested Order (Par Level - Inventory)"
+          >
+            <Sparkles className="w-4 h-4 fill-slate-950" />
+            <span>Use Suggested Order</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
           {/* Ready to Order Button */}
           <button
             type="button"
@@ -3702,46 +3778,59 @@ export default function InventoryFormCounting({
           </div>
         </div>
 
-        {/* Mode Switcher: ✍️ MANUAL ORDER vs 🎙️ VOICE ORDER (AI) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => {
-                setOrderInputMethod('manual');
-                if (isVoiceListening && recognitionRef.current) {
-                  try { recognitionRef.current.stop(); } catch {}
-                  setIsVoiceListening(false);
-                }
-              }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
-                orderInputMethod === 'manual'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>✍️ Manual Order</span>
-            </button>
+        {/* Mode Switcher & Quick Suggested Order Action */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderInputMethod('manual');
+                  if (isVoiceListening && recognitionRef.current) {
+                    try { recognitionRef.current.stop(); } catch {}
+                    setIsVoiceListening(false);
+                  }
+                }}
+                className={`px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                  orderInputMethod === 'manual'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>✍️ Manual Order</span>
+              </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderInputMethod('voice');
+                  startVoiceCounting();
+                }}
+                className={`px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
+                  orderInputMethod === 'voice'
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Mic className="w-4 h-4" />
+                <span>🎙️ Voice Order (AI)</span>
+              </button>
+            </div>
+
+            {/* Quick Button: Use Suggested Order for All */}
             <button
               type="button"
-              onClick={() => {
-                setOrderInputMethod('voice');
-                startVoiceCounting();
-              }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer ${
-                orderInputMethod === 'voice'
-                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={handleApplyAllSuggestedOrders}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md active:scale-95 transition cursor-pointer flex items-center gap-1.5"
+              title="Apply Suggested Order (Par Level minus Inventory) to every line item"
             >
-              <Mic className="w-4 h-4" />
-              <span>🎙️ Voice Order (AI)</span>
+              <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+              <span>⚡ Use Suggested Order for All</span>
             </button>
           </div>
 
           <div className="text-xs text-slate-300 font-mono">
-            Formula: <span className="text-amber-300 font-bold">Theoretical Order = Par Level - Inventory</span>
+            Formula: <span className="text-amber-300 font-bold">Suggested Order = Par Level - Inventory</span>
           </div>
         </div>
 
@@ -3877,10 +3966,10 @@ export default function InventoryFormCounting({
                   </span>
                 </div>
 
-                {/* 3. THEORETICAL ORDER (PAR LEVEL - INVENTORY) */}
+                {/* 3. SUGGESTED ORDER (PAR LEVEL - INVENTORY) */}
                 <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-center">
                   <span className="text-[9.5px] font-mono uppercase tracking-wider text-amber-800 font-bold block mb-0.5">
-                    3. THEO ORDER
+                    3. SUGGESTED ORDER
                   </span>
                   <span className="font-mono text-lg sm:text-xl font-black text-amber-950">
                     {theoOrder}
@@ -3945,8 +4034,8 @@ export default function InventoryFormCounting({
                     </button>
                   </div>
 
-                  {/* Quick fractional buttons */}
-                  <div className="flex items-center gap-1 font-mono text-[9px] mt-0.5">
+                  {/* Quick fractional and Suggested buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-1 font-mono text-[9px] mt-0.5">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -3979,6 +4068,23 @@ export default function InventoryFormCounting({
                       className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 cursor-pointer"
                     >
                       +¾
+                    </button>
+                    {/* One-tap Suggested Order Chip */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFinalOrderChange(item.itemId, String(theoOrder));
+                      }}
+                      className={`px-2 py-0.5 rounded font-bold border transition cursor-pointer flex items-center gap-1 ${
+                        (item.finalOrder || 0) === theoOrder && theoOrder > 0
+                          ? 'bg-amber-200 text-amber-950 border-amber-400 shadow-xs'
+                          : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                      }`}
+                      title="Set to Suggested Order"
+                    >
+                      <Sparkles className="w-2.5 h-2.5 fill-amber-700 text-amber-700" />
+                      <span>Use Suggested ({theoOrder})</span>
                     </button>
                   </div>
                 </div>
@@ -4549,33 +4655,62 @@ export default function InventoryFormCounting({
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
               <span className="text-amber-400 font-bold">
                 {activeModalPrompt === 'select_order_method'
-                  ? 'Listening hands-free: Say "MANUAL" or "VOICE"'
+                  ? 'Listening: Say "SUGGESTED", "VOICE", or "MANUAL"'
                   : 'Listening hands-free: Say "YES" / "SI" or "NO"'}
               </span>
             </div>
 
             {/* Action Buttons */}
             {activeModalPrompt === 'select_order_method' ? (
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-2.5 pt-1">
+                {/* 1. USE SUGGESTED ORDER (Recommended) */}
                 <button
                   type="button"
-                  onClick={() => handleSelectOrderMethod('manual')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition cursor-pointer"
+                  onClick={() => handleSelectOrderMethod('suggested')}
+                  className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black py-3.5 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between shadow-xl ring-2 ring-amber-300 active:scale-[0.98] transition cursor-pointer"
                 >
-                  <span className="text-lg">✍️</span>
-                  <span>MANUAL</span>
-                  <span className="text-[10px] font-mono text-slate-900 font-normal">Keypad / Buttons</span>
+                  <div className="flex items-center gap-2.5 text-left">
+                    <span className="text-xl">⚡</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black">USE SUGGESTED ORDER</span>
+                        <span className="bg-slate-950 text-amber-300 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold">
+                          RECOMMENDED
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] font-mono text-slate-900 font-medium">
+                        Auto-fills Par Level − Inventory for all items
+                      </p>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 stroke-3 text-slate-950 shrink-0" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleSelectOrderMethod('voice')}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 px-4 rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition cursor-pointer"
-                >
-                  <Mic className="w-5 h-5" />
-                  <span>VOICE</span>
-                  <span className="text-[10px] font-mono text-indigo-200 font-normal">AI Hands-Free</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOrderMethod('voice')}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 px-3 rounded-2xl text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition cursor-pointer border border-indigo-400/40"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Mic className="w-4 h-4" />
+                      <span>VOICE ORDER</span>
+                    </div>
+                    <span className="text-[9.5px] font-mono text-indigo-200 font-normal">AI Hands-Free</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOrderMethod('manual')}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3 px-3 rounded-2xl text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shadow-md active:scale-95 transition cursor-pointer border border-slate-700"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">✍️</span>
+                      <span>MANUAL</span>
+                    </div>
+                    <span className="text-[9.5px] font-mono text-slate-400 font-normal">Custom keypad</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 pt-1">
