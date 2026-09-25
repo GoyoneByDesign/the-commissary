@@ -211,84 +211,228 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
     return true;
   });
 
-  const triggerInvoicesPrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert("Please allow popups to open the printable preview sheet.");
+  // Robust native printing helper using a hidden iframe
+  const printReportHtml = (title: string, bodyHtml: string) => {
+    const existingFrame = document.getElementById('the-commissary-print-frame');
+    if (existingFrame) {
+      existingFrame.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'the-commissary-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc || !iframe.contentWindow) {
+      window.print();
       return;
     }
 
-    const compiledHtml = `
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Commissary System - Culinary Invoices Procurement Report</title>
+          <meta charset="utf-8" />
+          <title>${title}</title>
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #1e293b; }
-            h1 { font-size: 20px; font-weight: 800; text-transform: uppercase; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 5px; }
-            .meta { font-size: 11px; color: #64748b; font-family: monospace; margin-bottom: 25px; display: flex; justify-content: space-between; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
-            th { font-size: 10px; text-transform: uppercase; color: #475569; padding: 10px; border-bottom: 2px solid #cbd5e1; font-weight: bold; background: #f8fafc; }
-            td { font-size: 11px; padding: 12px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-            .total-row { font-weight: bold; font-family: monospace; background: #f8fafc; }
-            .badge { display: inline-block; padding: 2px 6px; font-size: 9px; text-transform: uppercase; border-radius: 4px; font-weight: bold; border: 1px solid #e2e8f0; background: #f1f5f9; }
-            .grand-box { margin-top: 30px; text-align: right; font-size: 14px; font-weight: bold; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+            @page {
+              size: auto;
+              margin: 12mm 15mm 15mm 15mm;
+            }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: #0f172a;
+              background: #ffffff;
+              margin: 0;
+              padding: 20px;
+              font-size: 11px;
+              line-height: 1.4;
+            }
+            h1 {
+              font-size: 18px;
+              font-weight: 800;
+              margin: 0 0 6px 0;
+              text-transform: uppercase;
+              letter-spacing: -0.3px;
+              color: #0f172a;
+              border-bottom: 2px solid #e2e8f0;
+              padding-bottom: 8px;
+            }
+            .meta {
+              font-size: 10px;
+              color: #64748b;
+              font-family: monospace;
+              margin: 8px 0 18px 0;
+              display: flex;
+              justify-content: space-between;
+              border-bottom: 1px dashed #e2e8f0;
+              padding-bottom: 6px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+              font-size: 10.5px;
+            }
+            th {
+              background-color: #f8fafc !important;
+              color: #334155;
+              font-weight: 700;
+              text-transform: uppercase;
+              font-family: monospace;
+              font-size: 9px;
+              padding: 8px 6px;
+              border-bottom: 2px solid #cbd5e1;
+              text-align: left;
+            }
+            td {
+              padding: 7px 6px;
+              border-bottom: 1px solid #f1f5f9;
+              color: #1e293b;
+            }
+            tr:nth-child(even) td {
+              background-color: #f8fafc;
+            }
+            .badge {
+              display: inline-block;
+              background: #f1f5f9;
+              padding: 2px 5px;
+              border-radius: 3px;
+              font-family: monospace;
+              font-size: 8.5px;
+              font-weight: bold;
+              border: 1px solid #e2e8f0;
+            }
+            .price {
+              font-weight: bold;
+              font-family: monospace;
+              color: #166534;
+            }
+            .total-row {
+              font-weight: bold;
+              font-family: monospace;
+              background-color: #f8fafc !important;
+              border-top: 2px solid #cbd5e1;
+            }
+            .grand-box {
+              margin-top: 20px;
+              text-align: right;
+              font-size: 13px;
+              font-weight: bold;
+              padding: 12px;
+              background: #f8fafc;
+              border-radius: 6px;
+              border: 1px solid #e2e8f0;
+              font-family: monospace;
+            }
+            .footer {
+              margin-top: 25px;
+              padding-top: 8px;
+              border-top: 1px dashed #cbd5e1;
+              font-size: 9px;
+              color: #94a3b8;
+              font-family: monospace;
+              display: flex;
+              justify-content: space-between;
+            }
           </style>
         </head>
         <body>
-          <h1>Operational Invoicing Summary Report</h1>
-          <div class="meta">
-            <span>Report Date: ${new Date().toLocaleDateString()} @ ${new Date().toLocaleTimeString()}</span>
-            <span>Requested By: ${simUser?.name || 'Authorized Admin'} (${simUser?.role || 'Authority'})</span>
-          </div>
-          <p style="font-size: 11px; color: #64748b;">Filtering: ${invFilterVendor ? `Vendor: "${invFilterVendor}" ` : ''}${invFilterCategory ? `Category: "${invFilterCategory}" ` : ''}${invFilterStartDate ? `From: ${invFilterStartDate} ` : ''}${invFilterEndDate ? `To: ${invFilterEndDate}` : ''}</p>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>Invoice ID</th>
-                <th>Vendor Supplier</th>
-                <th>Category</th>
-                <th>Store Code</th>
-                <th>Purchased Items</th>
-                <th>Receipt Date</th>
-                <th>Receipt Time</th>
-                <th>Grand Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredInvoices.map(inv => `
-                <tr>
-                  <td style="font-family: monospace;">${inv.id}</td>
-                  <td><strong>${inv.vendorName}</strong></td>
-                  <td><span class="badge">${inv.category}</span></td>
-                  <td style="font-family: monospace;">${inv.storeLocation || 'N/A'}</td>
-                  <td>${inv.itemsCount} products</td>
-                  <td>${inv.date}</td>
-                  <td>${inv.time}</td>
-                  <td style="font-family: monospace; font-weight: bold;">$${inv.totalPrice.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-              <tr class="total-row">
-                <td colspan="4">Grand Filtering Matched Aggregations:</td>
-                <td>${filteredInvoices.reduce((a, b) => a + b.itemsCount, 0)} quantities</td>
-                <td colspan="2"></td>
-                <td>$${filteredInvoices.reduce((a, b) => a + b.totalPrice, 0).toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-          
-          <div class="grand-box">
-            Total Operational Outlay: $${filteredInvoices.reduce((a, b) => a + b.totalPrice, 0).toFixed(2)} USD
-          </div>
+          ${bodyHtml}
         </body>
       </html>
-    `;
-    printWindow.document.write(compiledHtml);
-    printWindow.document.close();
-    printWindow.focus();
+    `);
+    doc.close();
+
+    // Trigger native printing dialog with printer, copies, layout, and settings options
     setTimeout(() => {
-      printWindow.print();
-    }, 500);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.warn("Iframe print error, falling back to window.print():", err);
+        window.print();
+      }
+      setTimeout(() => {
+        iframe.remove();
+      }, 3000);
+    }, 250);
+  };
+
+  const triggerInvoicesPrint = () => {
+    const metaText = `
+      <span>Report Date: ${new Date().toLocaleDateString()} @ ${new Date().toLocaleTimeString()}</span>
+      <span>Requested By: ${simUser?.name || 'Authorized Admin'} (${simUser?.role || 'Authority'})</span>
+    `;
+
+    const filterText = `Filtering: ${invFilterVendor ? `Vendor: "${invFilterVendor}" ` : ''}${invFilterCategory ? `Category: "${invFilterCategory}" ` : ''}${invFilterStartDate ? `From: ${invFilterStartDate} ` : ''}${invFilterEndDate ? `To: ${invFilterEndDate}` : 'All Invoices'}`;
+
+    const tableRows = filteredInvoices.map(inv => `
+      <tr>
+        <td style="font-family: monospace;">${inv.id}</td>
+        <td><strong>${inv.vendorName}</strong></td>
+        <td><span class="badge">${inv.category}</span></td>
+        <td style="font-family: monospace;">${inv.storeLocation || 'N/A'}</td>
+        <td>${inv.itemsCount} products</td>
+        <td>${inv.date}</td>
+        <td>${inv.time}</td>
+        <td style="font-family: monospace; font-weight: bold;">$${inv.totalPrice.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const totalQty = filteredInvoices.reduce((a, b) => a + b.itemsCount, 0);
+    const grandTotal = filteredInvoices.reduce((a, b) => a + b.totalPrice, 0).toFixed(2);
+
+    const bodyHtml = `
+      <h1>Operational Invoicing Summary Report</h1>
+      <div class="meta">${metaText}</div>
+      <p style="font-size: 11px; color: #64748b; margin-bottom: 12px;">${filterText}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice ID</th>
+            <th>Vendor Supplier</th>
+            <th>Category</th>
+            <th>Store Code</th>
+            <th>Purchased Items</th>
+            <th>Receipt Date</th>
+            <th>Receipt Time</th>
+            <th>Grand Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+          <tr class="total-row">
+            <td colspan="4">Grand Total (${filteredInvoices.length} Invoices):</td>
+            <td>${totalQty} quantities</td>
+            <td colspan="2"></td>
+            <td>$${grandTotal}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="grand-box">
+        Total Operational Outlay: $${grandTotal} USD
+      </div>
+      <div class="footer">
+        <span>The Commissary System &bull; Invoices Procurement Report</span>
+        <span>Verified and Secure</span>
+      </div>
+    `;
+
+    printReportHtml("Culinary Invoices Procurement Report", bodyHtml);
   };
 
   // Toggle store code selection for comparison card (constraint: max 10 stores)
@@ -305,82 +449,335 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
     }
   };
 
-  // Printable print command
+  // Printable catalog print command using hidden iframe for immediate system print modal
   const triggerNativePrint = () => {
-    const printContent = document.getElementById('printable-report-area');
-    if (!printContent) return;
-    
-    // Open a beautifully styled print window
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert("Please allow popups to open the printable preview sheet.");
-      return;
-    }
-
-    const compiledHtml = `
-      <html>
-        <head>
-          <title>Commissary System - Culinary Audit Catalog Spec Report</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
-            h1 { font-size: 22px; font-weight: 800; margin-bottom: 5px; text-transform: uppercase; letter-spacing: -0.5px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; }
-            .meta { font-size: 11px; color: #64748b; margin-bottom: 30px; font-family: monospace; display: flex; justify-content: space-between; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
-            th { background: #f8fafc; text-align: left; padding: 10px; font-weight: bold; border-bottom: 1.5px solid #cbd5e1; font-family: monospace; text-transform: uppercase; }
-            td { padding: 10px; border-bottom: 1.5px solid #f1f5f9; }
-            .badge { background: #f1f5f9; padding: 3px 6px; rounded: 4px; font-family: monospace; font-size: 9px; font-weight: bold; border: 1px solid #e2e8f0; }
-            .price { font-weight: bold; font-family: monospace; color: #15803d; }
-            .footer { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 50px; border-top: 1px dashed #e2e8f0; padding-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <h1>Inventory Catalog Master Specification Audit Sheet</h1>
-          <div class="meta">
-            <div>GENERATED: ${new Date().toLocaleString()}</div>
-            <div>STORES SELECTED: ${filterStore || 'All Available Outlets'} | SHIFT TIME: ${filterTime || 'All Day'}</div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Item Title</th>
-                <th>Category</th>
-                <th>Vendor</th>
-                <th>Measure System & Weight/Volume</th>
-                <th>Par level</th>
-                <th>Estimated Unit Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredCatalogItems.map(item => `
-                <tr>
-                  <td><strong>${item.itemCode || item.id}</strong></td>
-                  <td>${item.name}</td>
-                  <td><span class="badge">${item.category}</span></td>
-                  <td>${item.vendorName}</td>
-                  <td>
-                    ${item.measurementType === 'weight' ? `⚖️ Weight: ${item.weightOrVolumeValue} ${item.weightUnit || 'lbs'}` : ''}
-                    ${item.measurementType === 'liquid' ? `💧 Liquid: ${item.weightOrVolumeValue} ${item.liquidUnit || 'gal'}` : ''}
-                    ${(!item.measurementType || item.measurementType === 'discrete') ? `📦 Standard (${item.unitOfMeasurement})` : ''}
-                  </td>
-                  <td>${item.defaultParLevel} ${item.unitOfMeasurement}</td>
-                  <td class="price">$${(item.recentPurchasePrice || item.createdPrice || 24.50).toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer">
-            Food Safety & Procurement Intelligence Agency System. Printed from Cloud Native Terminal. Verified and Secure.
-          </div>
-          <script>
-            window.onload = function() { window.print(); window.close(); }
-          </script>
-        </body>
-      </html>
+    const metaText = `
+      <div>GENERATED: ${new Date().toLocaleString()}</div>
+      <div>STORES SELECTED: ${filterStore || 'All Available Outlets'} | SHIFT TIME: ${filterTime || 'All Day'}</div>
     `;
 
-    printWindow.document.write(compiledHtml);
-    printWindow.document.close();
+    const tableRows = filteredCatalogItems.map(item => `
+      <tr>
+        <td><strong>${item.itemCode || item.id}</strong></td>
+        <td>${item.name}</td>
+        <td><span class="badge">${item.category}</span></td>
+        <td>${item.vendorName}</td>
+        <td>
+          ${item.measurementType === 'weight' ? `⚖️ Weight: ${item.weightOrVolumeValue} ${item.weightUnit || 'lbs'}` : ''}
+          ${item.measurementType === 'liquid' ? `💧 Liquid: ${item.weightOrVolumeValue} ${item.liquidUnit || 'gal'}` : ''}
+          ${(!item.measurementType || item.measurementType === 'discrete') ? `📦 Standard (${item.unitOfMeasurement})` : ''}
+        </td>
+        <td>${item.defaultParLevel} ${item.unitOfMeasurement}</td>
+        <td class="price">$${(item.recentPurchasePrice || item.createdPrice || 24.50).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const bodyHtml = `
+      <h1>Inventory Catalog Master Specification Audit Sheet</h1>
+      <div class="meta">${metaText}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Item Title</th>
+            <th>Category</th>
+            <th>Vendor</th>
+            <th>Measure System & Weight/Volume</th>
+            <th>Par Level</th>
+            <th>Estimated Unit Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+      <div class="footer">
+        <span>The Commissary System &bull; Inventory Catalog Master Specification</span>
+        <span>Verified and Secure</span>
+      </div>
+    `;
+
+    printReportHtml("Inventory Catalog Master Specification Report", bodyHtml);
+  };
+
+  // Universal handler to print whatever report tab is currently active
+  const triggerPrintCurrentTab = () => {
+    if (activeTab === 'catalog-print') {
+      triggerNativePrint();
+    } else if (activeTab === 'invoices') {
+      triggerInvoicesPrint();
+    } else if (activeTab === 'suggested') {
+      const rows = sampleItems.slice(0, 25).map(item => {
+        const onHand = 3;
+        const suggested = Math.max(0, item.defaultParLevel - onHand);
+        return `
+          <tr>
+            <td><strong>${item.name}</strong></td>
+            <td><span class="badge">${item.category}</span></td>
+            <td>${item.unitOfMeasurement}</td>
+            <td style="text-align: center;">${onHand}</td>
+            <td style="text-align: center;">${item.defaultParLevel}</td>
+            <td style="text-align: right; font-weight: bold; color: #b45309;">${suggested > 0 ? `+${suggested}` : '0'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const bodyHtml = `
+        <h1>Consolidated Suggested Orders Report</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>LOCATION CONTEXT: ${selectedLocation}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Audit Item</th>
+              <th>Category</th>
+              <th>Unit</th>
+              <th style="text-align: center;">On-Hand Count</th>
+              <th style="text-align: center;">Standard Par</th>
+              <th style="text-align: right;">Suggested Purchase</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; Suggested Orders</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("Suggested Purchases Report", bodyHtml);
+    } else if (activeTab === 'variance') {
+      const rows = sampleItems.slice(0, 20).map((item, idx) => {
+        const target = item.defaultParLevel || 10;
+        const reported = Math.max(1, Math.round(target * (0.4 + (idx % 4) * 0.15)));
+        const deficit = (((target - reported) / target) * 100).toFixed(1);
+        return `
+          <tr>
+            <td><strong>${item.name}</strong></td>
+            <td><span class="badge">${item.category}</span></td>
+            <td style="text-align: center;">${target} ${item.unitOfMeasurement}</td>
+            <td style="text-align: center;">${reported} ${item.unitOfMeasurement}</td>
+            <td style="text-align: right; font-weight: bold; color: #dc2626;">-${deficit}%</td>
+          </tr>
+        `;
+      }).join('');
+
+      const bodyHtml = `
+        <h1>Stock Variance & Waste Analysis Report</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>LOCATION CONTEXT: ${selectedLocation}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item Catalog</th>
+              <th>Category</th>
+              <th style="text-align: center;">Target Par</th>
+              <th style="text-align: center;">Reported Count</th>
+              <th style="text-align: right;">Deficit Variance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; Stock Variance Analysis</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("Stock Variance Analysis Report", bodyHtml);
+    } else if (activeTab === 'pmix') {
+      const pmixItems = [
+        { name: "Carne Asada Burrito", category: "Burritos", qty: 450, cost: 3.20, price: 11.50, margin: "72.2%", class: "⭐ STAR" },
+        { name: "Carnitas Street Tacos", category: "Tacos", qty: 380, cost: 2.10, price: 8.95, margin: "76.5%", class: "⭐ STAR" },
+        { name: "Chile Verde Plate", category: "Plates", qty: 290, cost: 4.15, price: 13.95, margin: "70.3%", class: "⭐ STAR" },
+        { name: "Churro Sundae", category: "Dessert", qty: 120, cost: 1.80, price: 6.50, margin: "72.3%", class: "🧩 PUZZLE" },
+        { name: "Side Refried Beans", category: "Sides", qty: 410, cost: 0.65, price: 2.50, margin: "74.0%", class: "🐎 HORSE" },
+        { name: "Diet Mexican Cola", category: "Drinks", qty: 85, cost: 1.10, price: 3.25, margin: "66.2%", class: "🐕 DOG" },
+      ];
+      const rows = pmixItems.map(item => `
+        <tr>
+          <td><strong>${item.name}</strong></td>
+          <td><span class="badge">${item.category}</span></td>
+          <td style="text-align: center;">${item.qty}</td>
+          <td style="text-align: right;">$${item.cost.toFixed(2)}</td>
+          <td style="text-align: right;">$${item.price.toFixed(2)}</td>
+          <td style="text-align: right; font-weight: bold;">${item.margin}</td>
+          <td style="text-align: center;">${item.class}</td>
+        </tr>
+      `).join('');
+
+      const bodyHtml = `
+        <h1>Product Mix (PMIX) Popularity & Profitability Report</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>LOCATION: ${selectedLocation}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Dish / Item</th>
+              <th>Category</th>
+              <th style="text-align: center;">Qty Sold</th>
+              <th style="text-align: right;">Portion Cost</th>
+              <th style="text-align: right;">Menu Price</th>
+              <th style="text-align: right;">Margin %</th>
+              <th style="text-align: center;">Classification</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; PMIX Matrix</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("PMIX Popularity & Profitability Report", bodyHtml);
+    } else if (activeTab === 'usage-calc') {
+      const bodyHtml = `
+        <h1>Theoretical Food Cost & Usage Calculation</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>LOCATION: ${selectedLocation}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Metric Formula</th>
+              <th>Description</th>
+              <th style="text-align: right;">Operational Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Beginning Inventory (BI)</strong></td>
+              <td>Valuation of counted stock on shelf at period start</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold;">$14,250.00</td>
+            </tr>
+            <tr>
+              <td><strong>Purchases Added (P)</strong></td>
+              <td>Total culinary invoice deliveries during period</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold;">+$8,640.00</td>
+            </tr>
+            <tr>
+              <td><strong>Ending Inventory (EI)</strong></td>
+              <td>Physically audited closing balance</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold;">-$12,890.00</td>
+            </tr>
+            <tr class="total-row">
+              <td><strong>Cost of Goods Sold (COGS)</strong></td>
+              <td>BI + Purchases - Ending Inventory</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold; color: #b45309;">$10,000.00</td>
+            </tr>
+            <tr>
+              <td><strong>Gross Food Sales</strong></td>
+              <td>Period revenue recorded in POS terminal</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold;">$34,500.00</td>
+            </tr>
+            <tr class="total-row">
+              <td><strong>Food Cost Percentage</strong></td>
+              <td>(COGS / Food Sales) &times; 100</td>
+              <td style="text-align: right; font-family: monospace; font-weight: bold; color: #166534;">28.98% (Target Healthy)</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; Food Cost & Usage</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("Food Cost & Usage Calculation Report", bodyHtml);
+    } else if (activeTab === 'history') {
+      const rows = submissions.map(sub => `
+        <tr>
+          <td><strong>${sub.formTitle}</strong></td>
+          <td>${sub.userName}</td>
+          <td>${new Date(sub.timestamp).toLocaleString()}</td>
+          <td style="text-align: center;">${sub.items.length} items</td>
+          <td style="text-align: center;">${sub.items.reduce((s, i) => s + i.suggestedOrder, 0).toFixed(0)}</td>
+          <td style="text-align: center;">${sub.items.reduce((s, i) => s + i.finalOrder, 0).toFixed(0)}</td>
+          <td>${sub.notes || 'None'}</td>
+        </tr>
+      `).join('');
+
+      const bodyHtml = `
+        <h1>Checklist Audit Trail History Report</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>LOCATION CONTEXT: ${selectedLocation}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Form Title</th>
+              <th>Auditor / User</th>
+              <th>Timestamp</th>
+              <th style="text-align: center;">Items Counted</th>
+              <th style="text-align: center;">Suggested Orders</th>
+              <th style="text-align: center;">Final Orders</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="7" style="text-align:center;">No submissions logged.</td></tr>'}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; Checklist Audit Trail</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("Checklist Audit Trail History", bodyHtml);
+    } else if (activeTab === 'store-compare') {
+      const stores = comparedStores;
+      const headers = stores.map(s => `<th style="text-align:center;">${s}</th>`).join('');
+      const rows = sampleItems.slice(0, 20).map((item, idx) => {
+        const storeCols = stores.map(code => {
+          const mult = code === 'CM' ? 3.5 : code === 'AS' ? 1.2 : code === 'BK' ? 0.8 : 1.5;
+          const count = Math.round((item.defaultParLevel || 10) * mult * (0.6 + (idx % 5) * 0.1));
+          return `<td style="text-align:center; font-family: monospace;">${count}</td>`;
+        }).join('');
+        return `
+          <tr>
+            <td><strong>${item.name}</strong></td>
+            <td><span class="badge">${item.category}</span></td>
+            ${storeCols}
+          </tr>
+        `;
+      }).join('');
+
+      const bodyHtml = `
+        <h1>Multi-Store Inventory Comparison Matrix Report</h1>
+        <div class="meta">
+          <span>GENERATED: ${new Date().toLocaleString()}</span>
+          <span>STORES COMPARED: ${stores.join(', ') || 'None Selected'}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item Catalog</th>
+              <th>Category</th>
+              ${headers}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>The Commissary System &bull; Multi-Store Comparison Matrix</span>
+          <span>Verified and Secure</span>
+        </div>
+      `;
+      printReportHtml("Store Comparison Matrix Report", bodyHtml);
+    }
   };
 
   // Download simulation mechanics
@@ -411,9 +808,10 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
       a.download = `${filename}.xls`;
       a.click();
     } else {
-      // PDF Mock
-      setDownloadSuccessMsg("Triggering Native PDF engine generator... PDF report processed & downloaded.");
-      setTimeout(() => setDownloadSuccessMsg(''), 4000);
+      // PDF: Trigger system print dialog with "Save as PDF" option
+      triggerPrintCurrentTab();
+      setDownloadSuccessMsg("Opened system print window — choose your printer or select 'Save as PDF' from Destination.");
+      setTimeout(() => setDownloadSuccessMsg(''), 5000);
       return;
     }
 
@@ -554,28 +952,37 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
 
       {/* Export Format Actions Header block */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-500">
-        <span className="font-mono flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Export current data matrices strictly with secure backups:</span>
-        <div className="flex gap-1.5 font-mono">
+        <span className="font-mono flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Export or print current data matrices strictly with secure backups:</span>
+        <div className="flex flex-wrap gap-1.5 font-mono">
+          <button 
+            type="button"
+            onClick={() => triggerPrintCurrentTab()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[10.5px] font-black transition shadow-sm cursor-pointer"
+            title="Open system print window (choose printer, paper, copies, settings)"
+          >
+            <Printer className="w-3.5 h-3.5" /> Print This Report
+          </button>
           <button 
             type="button"
             onClick={() => triggerDownload('CSV', activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg text-[10.5px] font-bold transition shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg text-[10.5px] font-bold transition shadow-sm cursor-pointer"
           >
             <Download className="w-3 h-3 text-slate-500" /> CSV Excel-lite
           </button>
           <button 
             type="button"
             onClick={() => triggerDownload('Excel', activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg text-[10.5px] font-bold transition shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg text-[10.5px] font-bold transition shadow-sm cursor-pointer"
           >
             <FileSpreadsheet className="w-3 h-3 text-emerald-600 animate-pulse" /> Excel Spreadsheet
           </button>
           <button 
             type="button"
             onClick={() => triggerDownload('PDF', activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 border border-red-200 rounded-lg text-[10.5px] font-serif font-black transition shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 border border-red-200 rounded-lg text-[10.5px] font-serif font-black transition shadow-sm cursor-pointer"
+            title="Print or Save as PDF using system print window"
           >
-            <FileText className="w-3 h-3 text-red-600" /> Android PDF
+            <FileText className="w-3 h-3 text-red-600" /> Print / Save as PDF
           </button>
         </div>
       </div>
@@ -708,10 +1115,11 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
               <button
                 type="button"
                 onClick={triggerNativePrint}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase transition flex items-center gap-1.5 shadow"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase transition flex items-center gap-1.5 shadow cursor-pointer"
+                title="Open system print window (choose printer, paper, copies, settings)"
               >
                 <Printer className="w-4 h-4" />
-                Print This Active Report
+                Print This Report
               </button>
             </div>
 
@@ -1351,8 +1759,9 @@ export default function ReportViewer({ simUser, uploadedInvoices = [], setUpload
                 type="button"
                 onClick={triggerInvoicesPrint}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs uppercase cursor-pointer transition flex items-center gap-1.5 shadow"
+                title="Open system print window (choose printer, paper, copies, settings)"
               >
-                <Printer className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> Print Filtered Report
+                <Printer className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> Print This Report
               </button>
               
               <button
