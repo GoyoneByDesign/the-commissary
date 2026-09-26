@@ -536,7 +536,7 @@ export default function AdminPanels({
     localStorage.removeItem('applet_custom_logo');
     setCurrentLogoPreview(null);
     window.dispatchEvent(new Event('logo-updated'));
-    showToast('Brand logo reset back to standard vector eyeglasses default logo.');
+    showToast('Brand logo reset back to standard GoyoneByDesign diamond default logo.');
   };
 
   const handleUpdateCredentials = (e: React.FormEvent) => {
@@ -4955,7 +4955,7 @@ export default function AdminPanels({
                 className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-250 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
               >
                 <Trash className="w-3.5 h-3.5" />
-                Reset back to Default eyeglasses vector logo
+                Reset back to Default GoyoneByDesign logo
               </button>
             )}
           </div>

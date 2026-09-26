@@ -16,6 +16,7 @@ import ReportViewer from './components/ReportViewer';
 import AdminPanels from './components/AdminPanels';
 import InventoryFormCounting from './components/InventoryFormCounting';
 import AppLogo from './components/AppLogo';
+import CompanyLogo from './components/CompanyLogo';
 import { GitHubPushModal } from './components/GitHubPushModal';
 import ExcelImportModal from './components/ExcelImportModal';
 import { allOfficialStoreForms, allOfficialStoreItems } from './data/storeFormsData';
@@ -118,21 +119,27 @@ export default function App() {
       <header className="bg-slate-950 border-b border-red-500/20 text-white shadow-md font-sans sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
           
-          {/* Logo Brand area */}
+          {/* Logo Brand area - Click to go to Dashboard */}
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200/80 shadow-md flex items-center justify-center transform hover:scale-105 transition overflow-hidden p-0.5 shrink-0">
+            <button
+              onClick={() => setCurrentScreen('dashboard')}
+              className="flex items-center gap-3 text-left focus:outline-hidden hover:opacity-90 transition group cursor-pointer"
+              title="Go to The Commissary Main Dashboard"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200/80 shadow-md flex items-center justify-center transform group-hover:scale-105 transition overflow-hidden p-0.5 shrink-0">
                 <AppLogo className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-base sm:text-lg font-black font-display tracking-tight text-white leading-tight">The Commissary</h1>
+                  <h1 className="text-base sm:text-lg font-black font-display tracking-tight text-white leading-tight group-hover:text-amber-400 transition-colors">
+                    The Commissary
+                  </h1>
                 </div>
                 <p className="text-[9px] sm:text-[10px] text-amber-500 font-mono font-medium tracking-wide">
                   Track Inventory by Voice. Anytime. Anywhere.
                 </p>
               </div>
-            </div>
+            </button>
           </div>
 
           {/* Action buttons & Platform Toggle */}
@@ -276,20 +283,28 @@ export default function App() {
               <div className="flex items-center justify-center min-h-[500px] bg-slate-950 border border-slate-800 rounded-3xl shadow-xl relative overflow-hidden text-white font-sans">
                 <div className="absolute inset-0 bg-radial-gradient from-amber-500/10 via-transparent to-transparent opacity-50"></div>
                 
-                <div className="text-center space-y-4 z-10 p-6 animate-pulse">
-                  <div className="w-24 h-24 rounded-full bg-white border border-slate-200 shadow-lg mx-auto flex items-center justify-center overflow-hidden p-2">
-                    <AppLogo className="w-20 h-20" />
-                  </div>
-                  <h2 className="text-3xl font-black font-display tracking-tight text-white leading-none">The Commissary</h2>
+                <div className="text-center space-y-4 z-10 p-6">
+                  <button
+                    onClick={() => setCurrentScreen('dashboard')}
+                    className="group cursor-pointer focus:outline-hidden inline-block"
+                    title="Enter The Commissary Dashboard"
+                  >
+                    <div className="w-24 h-24 rounded-full bg-white border border-slate-200 shadow-lg mx-auto flex items-center justify-center overflow-hidden p-2 transform group-hover:scale-105 transition">
+                      <AppLogo className="w-20 h-20" />
+                    </div>
+                    <h2 className="text-3xl font-black font-display tracking-tight text-white leading-none mt-4 group-hover:text-amber-400 transition-colors">
+                      The Commissary
+                    </h2>
+                  </button>
                   <p className="text-xs text-amber-500 font-mono font-semibold uppercase tracking-widest">
                     Track Inventory by Voice. Anytime. Anywhere.
                   </p>
-                  <div className="pt-8">
+                  <div className="pt-6 flex justify-center gap-3">
                     <button 
-                      onClick={() => setCurrentScreen('login')}
-                      className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-full text-xs uppercase"
+                      onClick={() => setCurrentScreen('dashboard')}
+                      className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-full text-xs uppercase cursor-pointer shadow-lg hover:shadow-amber-500/20 transition active:scale-95"
                     >
-                      Bypass Splash Loading →
+                      Enter Dashboard →
                     </button>
                   </div>
                 </div>
@@ -1172,10 +1187,22 @@ export default function App() {
       </main>
 
       {/* 🧾 Bottom Brand Footer */}
-      <footer className="bg-slate-950 border-t border-slate-900 text-slate-400 text-center py-6 px-4 text-xs font-mono select-none mt-12">
-        <div className="max-w-7xl mx-auto space-y-1.5">
-          <p>© 2026 GoyoneByDesign Operations Team. All database scopes secured.</p>
-          <p className="text-[10px] text-slate-600">Enterprise Restaurant Warehouse Inventory, voice parsing NLP engines, and purchasing routers.</p>
+      <footer className="bg-slate-950 border-t border-slate-900 text-slate-400 py-6 px-4 text-xs font-mono select-none mt-12">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-black border border-slate-850 shadow-md flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+              <CompanyLogo className="w-8 h-8 shrink-0" />
+            </div>
+            <div className="text-left">
+              <p className="text-slate-200 font-bold tracking-tight text-sm">GoyoneByDesign Operations Team</p>
+              <p className="text-[10.5px] text-slate-500">© 2026 GoyoneByDesign. All database scopes secured.</p>
+            </div>
+          </div>
+          <div className="text-center sm:text-right">
+            <p className="text-[10px] text-slate-500 max-w-md">
+              Enterprise Restaurant Warehouse Inventory, voice parsing NLP engines, and automated purchasing routers.
+            </p>
+          </div>
         </div>
       </footer>
 
