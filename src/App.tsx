@@ -1222,7 +1222,7 @@ export default function App() {
             <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-center flex flex-col items-center justify-center space-y-3">
               <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm">
                 <img
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=https%3A%2F%2Fminiature-christina-sizes-method.trycloudflare.com"
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=https%3A%2F%2Fpermalink-sector-headline-rca.trycloudflare.com"
                   alt="The Commissary Mobile QR Code"
                   className="w-52 h-52 sm:w-60 sm:h-60 object-contain mx-auto rounded-lg"
                 />
@@ -1243,13 +1243,13 @@ export default function App() {
                 <input
                   type="text"
                   readOnly
-                  value="https://miniature-christina-sizes-method.trycloudflare.com"
+                  value="https://permalink-sector-headline-rca.trycloudflare.com"
                   className="bg-transparent text-xs font-mono text-slate-800 flex-1 outline-none font-semibold truncate"
                 />
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText("https://miniature-christina-sizes-method.trycloudflare.com");
+                    navigator.clipboard.writeText("https://permalink-sector-headline-rca.trycloudflare.com");
                     setCopiedTunnelLink(true);
                     setTimeout(() => setCopiedTunnelLink(false), 2500);
                   }}
