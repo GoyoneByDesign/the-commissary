@@ -29,6 +29,7 @@ interface InventoryFormCountingProps {
   onSubmitSuccess: (submissionId: string) => void;
   activeVoiceParsedCmd?: { itemName: string; quantity: number; unit: string; timestamp: number } | null;
   availableItems?: any[];
+  initialMode?: 'manual' | 'voice';
 }
 
 export default function InventoryFormCounting({
@@ -37,13 +38,14 @@ export default function InventoryFormCounting({
   onBack,
   onSubmitSuccess,
   activeVoiceParsedCmd,
-  availableItems
+  availableItems,
+  initialMode
 }: InventoryFormCountingProps) {
   // 🎯 Counting Phase: 'counting' (Fast count) | 'review' (Everything shown) | 'ordering' (Ordering phase) | 'completed' (Finished with Excel/Email)
   const [countingPhase, setCountingPhase] = useState<'counting' | 'review' | 'ordering' | 'completed'>('counting');
 
   // 🎙️ Input method during counting: 'manual' (keypad/touch/buttons) vs 'voice' (AI speech)
-  const [countInputMethod, setCountInputMethod] = useState<'manual' | 'voice'>('manual');
+  const [countInputMethod, setCountInputMethod] = useState<'manual' | 'voice'>(initialMode === 'voice' ? 'voice' : 'manual');
 
   // 📦 Input method during ordering: 'manual' vs 'voice'
   const [orderInputMethod, setOrderInputMethod] = useState<'manual' | 'voice'>('voice');
@@ -1309,6 +1311,16 @@ export default function InventoryFormCounting({
       }
     }
   };
+
+  // Auto-boot voice listening if initialMode was requested as voice
+  useEffect(() => {
+    if (initialMode === 'voice') {
+      const timer = setTimeout(() => {
+        startVoiceCounting();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [initialMode, form.id]);
 
   const toggleVoiceListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

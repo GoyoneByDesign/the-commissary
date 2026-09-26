@@ -1,20 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { User, Location, InventoryItem, InventoryForm, UserRole, Vendor, FormSubmission, UploadedInvoice, AppSettings, RolePermissions } from '../types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { User, Location, InventoryItem, InventoryForm, UserRole, Vendor, FormSubmission, UploadedInvoice, AppSettings, RolePermissions, JobCodeDefinition, FormSection } from '../types';
 import { sampleUsers, generateLocations, sampleItems, sampleForms, sampleSubmissions } from '../data/sampleData';
-import { Users, MapPin, ClipboardList, Plus, Edit2, Trash2, Key, Check, PlusCircle, Search, Copy, CheckCircle, RefreshCw, ShieldCheck, Upload, Image, Trash, Cpu, Database, Wifi, Info, HelpCircle, Terminal, Play, CheckSquare, Phone, Mail, Clock, DollarSign, Tag, Receipt, Sparkles, FileText, AlertTriangle, Camera, Video, Scale, Save, Undo, Sliders, Shield, Lock, FileSpreadsheet } from 'lucide-react';
-import { getAppSettings, saveAppSettings, defaultRolePermissions, defaultAppSettings, getUserInitials } from '../utils/settingsManager';
+import { 
+  Users, MapPin, ClipboardList, Plus, Edit2, Trash2, Key, Check, PlusCircle, Search, 
+  Copy, CheckCircle, RefreshCw, ShieldCheck, Upload, Image, Trash, Cpu, Database, 
+  Wifi, Info, HelpCircle, Terminal, Play, CheckSquare, Phone, Mail, Clock, DollarSign, 
+  Tag, Receipt, Sparkles, FileText, AlertTriangle, Camera, Video, Scale, Save, Undo, 
+  Sliders, Shield, Lock, FileSpreadsheet, Mic, Eye, X, ChevronDown, ChevronRight, QrCode, 
+  ArrowRight, Layers, ArrowLeft
+} from 'lucide-react';
+import { 
+  getAppSettings, saveAppSettings, defaultRolePermissions, defaultAppSettings, 
+  getUserInitials, defaultJobCodes, hasPermission 
+} from '../utils/settingsManager';
+import { 
+  getStoredForms, saveFormToStorage, deleteFormFromStorage, duplicateFormInStorage 
+} from '../utils/formStorage';
 
 interface AdminPanelsProps {
   simUser?: any;
   setSimUser?: (user: any) => void;
   items?: InventoryItem[];
   setItems?: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
+  forms?: InventoryForm[];
+  setForms?: React.Dispatch<React.SetStateAction<InventoryForm[]>>;
   submissions?: FormSubmission[];
   setSubmissions?: React.Dispatch<React.SetStateAction<FormSubmission[]>>;
   uploadedInvoices?: UploadedInvoice[];
   setUploadedInvoices?: React.Dispatch<React.SetStateAction<UploadedInvoice[]>>;
   users?: User[];
   setUsers?: React.Dispatch<React.SetStateAction<User[]>>;
+  onOpenForm?: (form: InventoryForm, mode?: 'manual' | 'voice') => void;
 }
 
 export default function AdminPanels({ 
@@ -22,12 +38,15 @@ export default function AdminPanels({
   setSimUser, 
   items: propItems, 
   setItems: propSetItems,
+  forms: propForms,
+  setForms: propSetForms,
   submissions: propSubmissions,
   setSubmissions: propSetSubmissions,
   uploadedInvoices,
   setUploadedInvoices,
   users: propUsers,
-  setUsers: propSetUsers
+  setUsers: propSetUsers,
+  onOpenForm
 }: AdminPanelsProps = {}) {
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'locations' | 'items' | 'forms' | 'brand' | 'integrations' | 'settings'>('users');
 
@@ -51,11 +70,12 @@ export default function AdminPanels({
     const updated: AppSettings = {
       orderEmailRecipient: orderEmailInput.trim() || 'michael.goyone@gmail.com',
       footerFormatTemplate: footerFormatInput.trim() || '[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])',
-      rolePermissions: rolePermissionsMatrix
+      rolePermissions: rolePermissionsMatrix,
+      jobCodes: jobCodesList
     };
     saveAppSettings(updated);
     setAppSettings(updated);
-    showToast("Application settings & role permissions matrix successfully saved!");
+    showToast("Application settings, job codes & permissions matrix successfully saved!");
   };
 
   const handleResetSettingsToDefault = () => {
@@ -65,6 +85,7 @@ export default function AdminPanels({
       setOrderEmailInput(defaultAppSettings.orderEmailRecipient);
       setFooterFormatInput(defaultAppSettings.footerFormatTemplate);
       setRolePermissionsMatrix(defaultAppSettings.rolePermissions);
+      setJobCodesList(defaultJobCodes);
       showToast("Settings reset to defaults.");
     }
   };
@@ -231,7 +252,9 @@ export default function AdminPanels({
   const submissions = propSubmissions || localSubmissions;
   const setSubmissions = propSetSubmissions || setLocalSubmissions;
 
-  const [forms, setForms] = useState<InventoryForm[]>(sampleForms);
+  const [localForms, setLocalForms] = useState<InventoryForm[]>(() => getStoredForms());
+  const forms = propForms || localForms;
+  const setForms = propSetForms || setLocalForms;
 
   // Weight & Liquid configurations
   const [itemInputMeasurementType, setItemInputMeasurementType] = useState<'discrete' | 'weight' | 'liquid'>('discrete');
@@ -384,6 +407,43 @@ export default function AdminPanels({
   const [formInputFreq, setFormInputFreq] = useState<'Daily' | 'Weekly' | 'Bi-weekly' | 'Monthly'>('Weekly');
   const [formInputDate, setFormInputDate] = useState('2026-06-01');
   const [formInputTime, setFormInputTime] = useState('22:00');
+
+  // Checksheet Forms Management Suite states
+  const [formsSearchQuery, setFormsSearchQuery] = useState('');
+  const [formsSelectedLoc, setFormsSelectedLoc] = useState('ALL');
+  const [formsSelectedFreq, setFormsSelectedFreq] = useState('ALL');
+  const [editingForm, setEditingForm] = useState<InventoryForm | null>(null);
+  const [deletingForm, setDeletingForm] = useState<InventoryForm | null>(null);
+  const [duplicatingForm, setDuplicatingForm] = useState<InventoryForm | null>(null);
+  const [duplicateTargetLoc, setDuplicateTargetLoc] = useState('AR');
+  const [duplicateNewTitle, setDuplicateNewTitle] = useState('');
+  const [showCreateFormModal, setShowCreateFormModal] = useState(false);
+
+  // Form Builder/Editor modal states
+  const [formModalTitle, setFormModalTitle] = useState('');
+  const [formModalLoc, setFormModalLoc] = useState('AR');
+  const [formModalFreq, setFormModalFreq] = useState<'Daily' | 'Weekly' | 'Bi-weekly' | 'Monthly'>('Weekly');
+  const [formModalDueDate, setFormModalDueDate] = useState('2026-06-01');
+  const [formModalDueTime, setFormModalDueTime] = useState('22:00');
+  const [formModalSections, setFormModalSections] = useState<FormSection[]>([
+    { name: 'Cooler', itemIds: [] },
+    { name: 'Dry Storage', itemIds: [] }
+  ]);
+  const [newSectionInput, setNewSectionInput] = useState('');
+  const [activeSectionIdx, setActiveSectionIdx] = useState(0);
+  const [itemSearchForForm, setItemSearchForForm] = useState('');
+
+  // Job Codes Directory states
+  const [jobCodesList, setJobCodesList] = useState<JobCodeDefinition[]>(() => appSettings.jobCodes && appSettings.jobCodes.length > 0 ? appSettings.jobCodes : defaultJobCodes);
+  const [showAddJobCodeModal, setShowAddJobCodeModal] = useState(false);
+  const [newJobCode, setNewJobCode] = useState<JobCodeDefinition>({
+    code: '',
+    title: '',
+    role: 'Manager',
+    department: 'Operations',
+    description: '',
+    color: '#3b82f6'
+  });
 
   // Super Admin custom settings states
   const [adminSettingsEmail, setAdminSettingsEmail] = useState(() => localStorage.getItem('applet_super_admin_email') || 'michael.goyone@gmail.com');
@@ -1195,41 +1255,178 @@ export default function AdminPanels({
     }
   };
 
-  // Form creation / scheduling action
-  const handleCreateForm = () => {
-    if (!formInputTitle) {
-      alert("Form Title must be declared");
-      return;
-    }
-    const newForm: InventoryForm = {
-      id: `f-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: formInputTitle,
-      locationCode: formInputLoc,
-      assignedUserIds: ['u3', 'u4'], // assigned directly toSarah and David in simulation
-      frequency: formInputFreq,
-      dueDate: formInputDate,
-      dueTime: formInputTime,
-      sections: [
-        { name: 'Cooler', itemIds: ['item1', 'item3'] },
-        { name: 'Dry Storage', itemIds: ['item6', 'item9'] }
-      ],
-      active: true
-    };
-    setForms(prev => [newForm, ...prev]);
-    showToast(`Checklist Form layout saved! Dispatched audit notifications to assigned managers.`);
-    setFormInputTitle('');
+  // Checksheet Forms Management Suite Handlers
+  const handleOpenCreateForm = () => {
+    setFormModalTitle('');
+    setFormModalLoc(formsSelectedLoc !== 'ALL' ? formsSelectedLoc : 'AR');
+    setFormModalFreq('Weekly');
+    setFormModalDueDate('2026-06-01');
+    setFormModalDueTime('22:00');
+    setFormModalSections([
+      { name: 'Cooler', itemIds: [] },
+      { name: 'Dry Storage', itemIds: [] }
+    ]);
+    setActiveSectionIdx(0);
+    setNewSectionInput('');
+    setItemSearchForForm('');
+    setShowCreateFormModal(true);
   };
 
-  // Checklist duplication action (specific requirement)
-  const handleDuplicateForm = (f: InventoryForm) => {
-    const duplicated: InventoryForm = {
-      ...f,
-      id: `f-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: `${f.title} (Duplicate ID)`,
-      dueDate: '2026-06-15' // extended due date
+  const handleOpenEditForm = (f: InventoryForm) => {
+    setEditingForm(f);
+    setFormModalTitle(f.title);
+    setFormModalLoc(f.locationCode || 'AR');
+    setFormModalFreq(f.frequency || 'Weekly');
+    setFormModalDueDate(f.dueDate || '2026-06-01');
+    setFormModalDueTime(f.dueTime || '22:00');
+    setFormModalSections(
+      f.sections && f.sections.length > 0 
+        ? JSON.parse(JSON.stringify(f.sections)) 
+        : [{ name: 'General', itemIds: [] }]
+    );
+    setActiveSectionIdx(0);
+    setNewSectionInput('');
+    setItemSearchForForm('');
+  };
+
+  const handleOpenDuplicateForm = (f: InventoryForm) => {
+    setDuplicatingForm(f);
+    setDuplicateTargetLoc('AR');
+    setDuplicateNewTitle(`${f.title} (Copy)`);
+  };
+
+  const handleSaveNewForm = () => {
+    if (!formModalTitle.trim()) {
+      alert("Please enter a Title for the checksheet.");
+      return;
+    }
+    const created: InventoryForm = {
+      id: `form-${formModalLoc.toLowerCase()}-${Date.now().toString(36)}`,
+      title: formModalTitle.trim(),
+      locationCode: formModalLoc,
+      assignedUserIds: ['u1', 'u3'],
+      frequency: formModalFreq,
+      dueDate: formModalDueDate,
+      dueTime: formModalDueTime,
+      sections: formModalSections.filter(s => s.name.trim() !== ''),
+      active: true
     };
-    setForms(prev => [...prev, duplicated]);
-    showToast(`Duplicated inventory form structure: "${f.title}"`);
+    const updated = saveFormToStorage(created);
+    setForms(updated);
+    setShowCreateFormModal(false);
+    showToast(`Created checksheet "${created.title}" for ${created.locationCode}!`);
+  };
+
+  const handleSaveEditedForm = () => {
+    if (!editingForm) return;
+    if (!formModalTitle.trim()) {
+      alert("Please enter a Title for the checksheet.");
+      return;
+    }
+    const updatedForm: InventoryForm = {
+      ...editingForm,
+      title: formModalTitle.trim(),
+      locationCode: formModalLoc,
+      frequency: formModalFreq,
+      dueDate: formModalDueDate,
+      dueTime: formModalDueTime,
+      sections: formModalSections.filter(s => s.name.trim() !== '')
+    };
+    const updated = saveFormToStorage(updatedForm);
+    setForms(updated);
+    setEditingForm(null);
+    showToast(`Checksheet "${updatedForm.title}" updated successfully!`);
+  };
+
+  const handleConfirmDeleteForm = () => {
+    if (!deletingForm) return;
+    const updated = deleteFormFromStorage(deletingForm.id);
+    setForms(updated);
+    showToast(`Checksheet "${deletingForm.title}" deleted.`);
+    setDeletingForm(null);
+  };
+
+  const handleConfirmDuplicateForm = () => {
+    if (!duplicatingForm) return;
+    const res = duplicateFormInStorage(duplicatingForm, duplicateTargetLoc, duplicateNewTitle.trim() || undefined);
+    setForms(res.updatedForms);
+    setDuplicatingForm(null);
+    showToast(`Duplicated checksheet to ${duplicateTargetLoc}: "${res.newForm.title}"!`);
+  };
+
+  const handleAddSectionToModal = () => {
+    const trimmed = newSectionInput.trim();
+    if (!trimmed) return;
+    setFormModalSections(prev => [...prev, { name: trimmed, itemIds: [] }]);
+    setNewSectionInput('');
+    setActiveSectionIdx(formModalSections.length);
+  };
+
+  const handleRemoveSectionFromModal = (idx: number) => {
+    if (formModalSections.length <= 1) {
+      alert("A checksheet must contain at least one section.");
+      return;
+    }
+    setFormModalSections(prev => prev.filter((_, i) => i !== idx));
+    setActiveSectionIdx(prev => Math.max(0, prev - 1));
+  };
+
+  const handleToggleItemInModalSection = (itemId: string) => {
+    setFormModalSections(prev => {
+      const copy = [...prev];
+      const curSection = copy[activeSectionIdx];
+      if (!curSection) return prev;
+      const exists = curSection.itemIds.includes(itemId);
+      curSection.itemIds = exists 
+        ? curSection.itemIds.filter(id => id !== itemId) 
+        : [...curSection.itemIds, itemId];
+      return copy;
+    });
+  };
+
+  // Legacy compatibility aliases
+  const handleCreateForm = handleOpenCreateForm;
+  const handleDuplicateForm = handleOpenDuplicateForm;
+
+  // Job code management handlers
+  const handleAddJobCode = () => {
+    if (!newJobCode.code.trim() || !newJobCode.title.trim()) {
+      alert("Please provide both Job Code and Title.");
+      return;
+    }
+    const cleanCode = newJobCode.code.trim().toUpperCase();
+    if (jobCodesList.some(j => j.code === cleanCode)) {
+      alert(`Job Code ${cleanCode} already exists.`);
+      return;
+    }
+    const updated = [...jobCodesList, { ...newJobCode, code: cleanCode }];
+    setJobCodesList(updated);
+    saveAppSettings({ jobCodes: updated });
+    setShowAddJobCodeModal(false);
+    setNewJobCode({
+      code: '',
+      title: '',
+      role: 'Manager',
+      department: 'Operations',
+      description: '',
+      color: '#3b82f6'
+    });
+    showToast(`Added Job Code ${cleanCode} (${newJobCode.title})!`);
+  };
+
+  const handleDeleteJobCode = (code: string) => {
+    const target = jobCodesList.find(j => j.code === code);
+    if (!target) return;
+    if (target.isSystemProtected) {
+      alert("System-protected job codes (such as EXEC-01 Super Admin) cannot be deleted.");
+      return;
+    }
+    if (confirm(`Are you sure you want to remove Job Code ${code} (${target.title})?`)) {
+      const updated = jobCodesList.filter(j => j.code !== code);
+      setJobCodesList(updated);
+      saveAppSettings({ jobCodes: updated });
+      showToast(`Removed Job Code ${code}.`);
+    }
   };
 
   // Toggle user assignment location code
@@ -1280,15 +1477,18 @@ export default function AdminPanels({
               >
                 <Plus className="w-3.5 h-3.5" /> Items
               </button>
-              <button
-                onClick={() => setActiveSubTab('forms')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
-                  activeSubTab === 'forms' ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ClipboardList className="w-3.5 h-3.5" /> Forms
-              </button>
             </>
+          )}
+
+          {(!simUser || simUser.role === 'Super Admin' || hasPermission(simUser?.role, 'canManageForms')) && (
+            <button
+              onClick={() => setActiveSubTab('forms')}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 touch-manipulation ${
+                activeSubTab === 'forms' ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Checksheets ({forms.length})
+            </button>
           )}
 
           {(!simUser || simUser.role === 'Super Admin') && (
@@ -3805,118 +4005,880 @@ export default function AdminPanels({
 
       {/* 4. AUDIT CHECKLIST FORMS BUILDER & SCHEDULER & DUPLICATOR */}
       {activeSubTab === 'forms' && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Configure new form */}
-          <div className="bg-slate-50 border p-5 rounded-2xl h-fit space-y-4">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-              <PlusCircle className="w-4 h-4 text-amber-500" /> Build Inventory Audit Checklist
-            </h3>
-
-            <div className="space-y-1.5 text-xs">
-              <label className="font-bold text-gray-400 font-mono text-[10px] uppercase">Form/Checksheet Title</label>
-              <input 
-                type="text" 
-                placeholder="Weekly Food Cost Audit"
-                value={formInputTitle}
-                onChange={(e) => setFormInputTitle(e.target.value)}
-                className="w-full p-2.5 border border-slate-200 rounded-xl bg-white text-sans focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 text-xs">
-                <label className="font-bold text-gray-400 font-mono text-[10px] uppercase">Target Store Location</label>
-                <select 
-                  value={formInputLoc}
-                  onChange={(e) => setFormInputLoc(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-amber-500 font-mono"
-                >
-                  <option value="AR">AR - Arlington</option>
-                  <option value="CM">CM - Commissary</option>
-                  <option value="AS">AS - Ashburn</option>
-                  <option value="BK">BK - Burke</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 text-xs">
-                <label className="font-bold text-gray-400 font-mono text-[10px] uppercase">Frequency Cycle</label>
-                <select 
-                  value={formInputFreq}
-                  onChange={(e) => setFormInputFreq(e.target.value as any)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-amber-500 font-mono"
-                >
-                  <option value="Daily">Daily</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Bi-weekly">Bi-weekly</option>
-                  <option value="Monthly">Monthly</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 text-xs">
-                <label className="font-bold text-gray-400 font-mono text-[10px] uppercase">Due Date</label>
-                <input 
-                  type="date" 
-                  value={formInputDate}
-                  onChange={(e) => setFormInputDate(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white font-mono focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="space-y-1.5 text-xs">
-                <label className="font-bold text-gray-400 font-mono text-[10px] uppercase">Due Time</label>
-                <input 
-                  type="time" 
-                  value={formInputTime}
-                  onChange={(e) => setFormInputTime(e.target.value)}
-                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white font-mono focus:outline-none focus:border-amber-500"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleCreateForm}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs uppercase cursor-pointer"
-            >
-              Publish & Schedule Audit
-            </button>
-          </div>
-
-          {/* Published checklists list featuring easy duplication */}
-          <div className="lg:col-span-2 space-y-3">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">
-              Active scheduled checksheet audits ({forms.length})
-            </h4>
-
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-              {forms.map(f => (
-                <div key={f.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-slate-300 transition flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                  <div className="text-xs">
-                    <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-mono text-[8px] font-bold uppercase">
-                      {f.frequency}
-                    </span>
-                    <h4 className="font-bold text-gray-900 text-sm mt-1">{f.title}</h4>
-                    <p className="text-slate-400 mt-0.5">Bound Store: <span className="font-bold text-slate-700">{f.locationCode}</span> | Due date: {f.dueDate} at {f.dueTime}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-wider">
-                      Includes sections Cooler, Dry Storage, Bar, Freezers
+        <div className="space-y-6 animate-fadeIn">
+          {(!simUser || simUser.role === 'Super Admin' || hasPermission(simUser?.role, 'canManageForms')) ? (
+            <>
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white p-5 sm:p-6 rounded-2xl border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
+                    <ClipboardList className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-black text-lg sm:text-xl font-display text-white">
+                        Inventory Checksheet Forms Suite
+                      </h3>
+                      <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                        {forms.length} Total Forms
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Super Admin Authority • Create, edit, clone across store locations, and delete inventory audit sheets.
                     </p>
                   </div>
+                </div>
 
-                  <div className="flex shrink-0">
-                    <button
-                      onClick={() => handleDuplicateForm(f)}
-                      className="flex items-center gap-1 px-3 py-2 bg-slate-50 border hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition active:scale-95 shadow-sm"
-                      title="Duplicate Layout"
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateForm}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 stroke-[3]" />
+                    <span>Build New Checksheet</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                  {/* Search Bar */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={formsSearchQuery}
+                      onChange={(e) => setFormsSearchQuery(e.target.value)}
+                      placeholder="Search checksheets by title, section, or location code..."
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                    />
+                    {formsSearchQuery && (
+                      <button
+                        onClick={() => setFormsSearchQuery('')}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Frequency Filter Selector */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase font-mono">Cycle:</span>
+                    <select
+                      value={formsSelectedFreq}
+                      onChange={(e) => setFormsSelectedFreq(e.target.value)}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer"
                     >
-                      <Copy className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Duplicate Layout</span>
-                    </button>
+                      <option value="ALL">All Frequencies</option>
+                      <option value="Daily">Daily</option>
+                      <option value="Weekly">Weekly</option>
+                      <option value="Bi-weekly">Bi-weekly</option>
+                      <option value="Monthly">Monthly</option>
+                    </select>
                   </div>
                 </div>
-              ))}
+
+                {/* Location Filter Pills */}
+                <div className="pt-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  <span className="text-[10px] font-mono uppercase font-bold text-slate-400 shrink-0 mr-1">Location:</span>
+                  {[
+                    { code: 'ALL', label: 'All Stores' },
+                    { code: 'CH', label: 'CH - Chantilly' },
+                    { code: 'LB', label: 'LB - Leesburg' },
+                    { code: 'VN', label: 'VN - Vienna' },
+                    { code: 'HD', label: 'HD - Herndon' },
+                    { code: 'BW', label: 'BW - Bristow' },
+                    { code: 'CM', label: 'CM - Commissary' },
+                    { code: 'AR', label: 'AR - Arlington' },
+                    { code: 'AS', label: 'AS - Ashburn' },
+                    { code: 'BK', label: 'BK - Burke' },
+                    { code: 'FX', label: 'FX - Fairfax' }
+                  ].map((loc) => {
+                    const isSelected = formsSelectedLoc === loc.code;
+                    const count = loc.code === 'ALL' 
+                      ? forms.length 
+                      : forms.filter(f => f.locationCode === loc.code).length;
+                    return (
+                      <button
+                        key={loc.code}
+                        type="button"
+                        onClick={() => setFormsSelectedLoc(loc.code)}
+                        className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-950 text-amber-400 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <span>{loc.label}</span>
+                        <span className={`text-[9px] px-1 rounded-full ${isSelected ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-200 text-slate-600'}`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Checksheets Cards Grid */}
+              {(() => {
+                const filtered = forms.filter(f => {
+                  const matchLoc = formsSelectedLoc === 'ALL' || f.locationCode === formsSelectedLoc;
+                  const matchFreq = formsSelectedFreq === 'ALL' || f.frequency === formsSelectedFreq;
+                  const q = formsSearchQuery.toLowerCase().trim();
+                  const matchQuery = !q || 
+                    f.title.toLowerCase().includes(q) || 
+                    (f.locationCode && f.locationCode.toLowerCase().includes(q)) ||
+                    (f.sections && f.sections.some(s => s.name.toLowerCase().includes(q)));
+                  return matchLoc && matchFreq && matchQuery;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
+                        <ClipboardList className="w-7 h-7" />
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-base">No checksheets match your filter</h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        No forms found for location "{formsSelectedLoc}" with query "{formsSearchQuery}". You can build a new checksheet now.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateForm}
+                        className="mt-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Build New Checksheet
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filtered.map((f) => {
+                      const totalItems = f.sections ? f.sections.reduce((acc, s) => acc + (s.itemIds?.length || 0), 0) : 0;
+                      return (
+                        <div
+                          key={f.id}
+                          className="bg-white border border-slate-200/90 hover:border-amber-400/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-3 relative group"
+                        >
+                          {/* Card Top: Location & Frequency Tags */}
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="bg-slate-950 text-amber-400 font-mono text-[10px] font-black px-2 py-0.5 rounded-md">
+                                  {f.locationCode || 'STORE'}
+                                </span>
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 font-mono text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">
+                                  {f.frequency}
+                                </span>
+                              </div>
+
+                              {f.excelFileName && (
+                                <a
+                                  href={`/excel-forms/${encodeURIComponent(f.excelFileName)}`}
+                                  download={f.excelFileName}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full transition"
+                                  title="Download linked Excel checksheet"
+                                >
+                                  <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                  <span>.xlsx</span>
+                                </a>
+                              )}
+                            </div>
+
+                            <h4 className="font-black text-slate-900 text-sm leading-snug">
+                              {f.title}
+                            </h4>
+
+                            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>Due {f.dueDate} at {f.dueTime}</span>
+                            </p>
+
+                            {/* Sections Preview */}
+                            <div className="mt-2.5 pt-2.5 border-t border-slate-100 space-y-1">
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                <span>{f.sections?.length || 0} Sections</span>
+                                <span className="font-bold text-slate-700">{totalItems} Total Items</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {(f.sections || []).slice(0, 4).map((sec, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="bg-slate-50 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                  >
+                                    {sec.name} ({sec.itemIds?.length || 0})
+                                  </span>
+                                ))}
+                                {(f.sections?.length || 0) > 4 && (
+                                  <span className="text-[10px] text-slate-400 font-mono self-center">
+                                    +{(f.sections?.length || 0) - 4} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer: Action Buttons */}
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            {/* Primary Count Triggers: Voice & Manual */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onOpenForm ? onOpenForm(f, 'voice') : alert(`Launching voice count for ${f.title}`)}
+                                className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-black py-2 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+                                title="Start hands-free voice counting on this checksheet"
+                              >
+                                <Mic className="w-3.5 h-3.5 text-slate-950" />
+                                <span>Voice Count</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => onOpenForm ? onOpenForm(f, 'manual') : alert(`Launching manual count for ${f.title}`)}
+                                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold py-2 px-2 rounded-xl text-xs uppercase flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
+                                title="Open manual numerical keypad counting"
+                              >
+                                <span>Manual</span>
+                              </button>
+                            </div>
+
+                            {/* Secondary Administrative Tools: Edit, Duplicate, Delete */}
+                            <div className="flex items-center justify-between gap-1 text-slate-600 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditForm(f)}
+                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-950 text-xs font-semibold flex items-center gap-1 transition"
+                                title="Edit checksheet title, schedule, or items"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Edit</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDuplicateForm(f)}
+                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-950 text-xs font-semibold flex items-center gap-1 transition"
+                                title="Duplicate layout to another store location"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Duplicate</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setDeletingForm(f)}
+                                className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 transition"
+                                title="Delete this checksheet form"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* ========================================================================= */}
+              {/* MODALS FOR FORMS MANAGEMENT                                               */}
+              {/* ========================================================================= */}
+
+              {/* 1. CREATE / BUILD NEW FORM MODAL */}
+              {showCreateFormModal && (
+                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                  <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-scaleUp my-8 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center">
+                          <PlusCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-base text-slate-950 font-display">Build New Inventory Checksheet</h4>
+                          <p className="text-[11px] text-slate-500">Design a customized inventory count form for any store outlet</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowCreateFormModal(false)}
+                        className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 text-xs">
+                      {/* Title */}
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Form / Checksheet Title *</label>
+                        <input
+                          type="text"
+                          value={formModalTitle}
+                          onChange={(e) => setFormModalTitle(e.target.value)}
+                          placeholder="e.g. CH - Daily Food Audit & Walk-in Cooler"
+                          className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:border-amber-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Location & Frequency */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Target Location Outlet *</label>
+                          <select
+                            value={formModalLoc}
+                            onChange={(e) => setFormModalLoc(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="CH">CH - Chantilly</option>
+                            <option value="LB">LB - Leesburg</option>
+                            <option value="VN">VN - Vienna</option>
+                            <option value="HD">HD - Herndon</option>
+                            <option value="BW">BW - Bristow</option>
+                            <option value="CM">CM - Commissary</option>
+                            <option value="AR">AR - Arlington</option>
+                            <option value="AS">AS - Ashburn</option>
+                            <option value="BK">BK - Burke</option>
+                            <option value="FX">FX - Fairfax</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Frequency Cycle *</label>
+                          <select
+                            value={formModalFreq}
+                            onChange={(e) => setFormModalFreq(e.target.value as any)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Bi-weekly">Bi-weekly</option>
+                            <option value="Monthly">Monthly</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Due Date & Time */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Due Date</label>
+                          <input
+                            type="date"
+                            value={formModalDueDate}
+                            onChange={(e) => setFormModalDueDate(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Due Time</label>
+                          <input
+                            type="time"
+                            value={formModalDueTime}
+                            onChange={(e) => setFormModalDueTime(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Sections & Items Config */}
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <label className="font-black text-slate-800 uppercase font-mono text-[11px]">
+                            Checksheet Sections ({formModalSections.length})
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Select a section tab to assign items
+                          </span>
+                        </div>
+
+                        {/* Section Tabs */}
+                        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
+                          {formModalSections.map((sec, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => setActiveSectionIdx(idx)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                                activeSectionIdx === idx
+                                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                                  : 'bg-white text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              <span>{sec.name}</span>
+                              <span className="text-[10px] opacity-75">({sec.itemIds.length})</span>
+                              {formModalSections.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSectionFromModal(idx);
+                                  }}
+                                  className="text-slate-500 hover:text-red-700 ml-1"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Quick add section input */}
+                          <div className="flex items-center gap-1 ml-auto">
+                            <input
+                              type="text"
+                              value={newSectionInput}
+                              onChange={(e) => setNewSectionInput(e.target.value)}
+                              placeholder="+ Add Section..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddSectionToModal();
+                                }
+                              }}
+                              className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs w-28 focus:outline-none focus:border-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddSectionToModal}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-950 text-white rounded-lg text-xs font-bold"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Items Picker for active section */}
+                        {formModalSections[activeSectionIdx] && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800 text-xs">
+                                Items in section "{formModalSections[activeSectionIdx].name}":
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-500">
+                                {formModalSections[activeSectionIdx].itemIds.length} items linked
+                              </span>
+                            </div>
+
+                            {/* Search filter for items */}
+                            <input
+                              type="text"
+                              value={itemSearchForForm}
+                              onChange={(e) => setItemSearchForForm(e.target.value)}
+                              placeholder="Search catalog items to add/remove..."
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs"
+                            />
+
+                            {/* Item badges picker */}
+                            <div className="max-h-44 overflow-y-auto space-y-1 divide-y divide-slate-200/60 bg-white border border-slate-200 rounded-lg p-2">
+                              {items
+                                .filter(it => !itemSearchForForm || it.name.toLowerCase().includes(itemSearchForForm.toLowerCase()))
+                                .slice(0, 40)
+                                .map((it) => {
+                                  const isChecked = formModalSections[activeSectionIdx].itemIds.includes(it.id);
+                                  return (
+                                    <label
+                                      key={it.id}
+                                      className={`py-1.5 px-2 flex items-center justify-between gap-2 text-xs rounded cursor-pointer transition ${
+                                        isChecked ? 'bg-amber-50 text-amber-950 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => handleToggleItemInModalSection(it.id)}
+                                          className="rounded text-amber-500 focus:ring-amber-500"
+                                        />
+                                        <span>{it.name}</span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        {it.unit}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateFormModal(false)}
+                        className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveNewForm}
+                        className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs uppercase cursor-pointer shadow-md"
+                      >
+                        Publish & Save Checksheet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. EDIT FORM MODAL */}
+              {editingForm && (
+                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                  <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-scaleUp my-8 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center">
+                          <Edit2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-base text-slate-950 font-display">Edit Checksheet: {editingForm.title}</h4>
+                          <p className="text-[11px] text-slate-500">Update form scheduling, title, sections, and item assignments</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setEditingForm(null)}
+                        className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 text-xs">
+                      {/* Title */}
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Form / Checksheet Title *</label>
+                        <input
+                          type="text"
+                          value={formModalTitle}
+                          onChange={(e) => setFormModalTitle(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:border-amber-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Location & Frequency */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Location Code *</label>
+                          <select
+                            value={formModalLoc}
+                            onChange={(e) => setFormModalLoc(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="CH">CH - Chantilly</option>
+                            <option value="LB">LB - Leesburg</option>
+                            <option value="VN">VN - Vienna</option>
+                            <option value="HD">HD - Herndon</option>
+                            <option value="BW">BW - Bristow</option>
+                            <option value="CM">CM - Commissary</option>
+                            <option value="AR">AR - Arlington</option>
+                            <option value="AS">AS - Ashburn</option>
+                            <option value="BK">BK - Burke</option>
+                            <option value="FX">FX - Fairfax</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Frequency Cycle *</label>
+                          <select
+                            value={formModalFreq}
+                            onChange={(e) => setFormModalFreq(e.target.value as any)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Bi-weekly">Bi-weekly</option>
+                            <option value="Monthly">Monthly</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Due Date & Time */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Due Date</label>
+                          <input
+                            type="date"
+                            value={formModalDueDate}
+                            onChange={(e) => setFormModalDueDate(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Due Time</label>
+                          <input
+                            type="time"
+                            value={formModalDueTime}
+                            onChange={(e) => setFormModalDueTime(e.target.value)}
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Sections & Items Config */}
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <label className="font-black text-slate-800 uppercase font-mono text-[11px]">
+                            Checksheet Sections ({formModalSections.length})
+                          </label>
+                        </div>
+
+                        {/* Section Tabs */}
+                        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
+                          {formModalSections.map((sec, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => setActiveSectionIdx(idx)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                                activeSectionIdx === idx
+                                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                                  : 'bg-white text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              <span>{sec.name}</span>
+                              <span className="text-[10px] opacity-75">({sec.itemIds?.length || 0})</span>
+                              {formModalSections.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSectionFromModal(idx);
+                                  }}
+                                  className="text-slate-500 hover:text-red-700 ml-1"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          <div className="flex items-center gap-1 ml-auto">
+                            <input
+                              type="text"
+                              value={newSectionInput}
+                              onChange={(e) => setNewSectionInput(e.target.value)}
+                              placeholder="+ Add Section..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddSectionToModal();
+                                }
+                              }}
+                              className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs w-28 focus:outline-none focus:border-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddSectionToModal}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-950 text-white rounded-lg text-xs font-bold"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Items in section */}
+                        {formModalSections[activeSectionIdx] && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800 text-xs">
+                                Items in section "{formModalSections[activeSectionIdx].name}":
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-500">
+                                {formModalSections[activeSectionIdx].itemIds?.length || 0} items linked
+                              </span>
+                            </div>
+
+                            <input
+                              type="text"
+                              value={itemSearchForForm}
+                              onChange={(e) => setItemSearchForForm(e.target.value)}
+                              placeholder="Search catalog items to add/remove..."
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs"
+                            />
+
+                            <div className="max-h-44 overflow-y-auto space-y-1 divide-y divide-slate-200/60 bg-white border border-slate-200 rounded-lg p-2">
+                              {items
+                                .filter(it => !itemSearchForForm || it.name.toLowerCase().includes(itemSearchForForm.toLowerCase()))
+                                .slice(0, 40)
+                                .map((it) => {
+                                  const isChecked = formModalSections[activeSectionIdx].itemIds?.includes(it.id);
+                                  return (
+                                    <label
+                                      key={it.id}
+                                      className={`py-1.5 px-2 flex items-center justify-between gap-2 text-xs rounded cursor-pointer transition ${
+                                        isChecked ? 'bg-amber-50 text-amber-950 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => handleToggleItemInModalSection(it.id)}
+                                          className="rounded text-amber-500 focus:ring-amber-500"
+                                        />
+                                        <span>{it.name}</span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        {it.unit}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setEditingForm(null)}
+                        className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEditedForm}
+                        className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs uppercase cursor-pointer shadow-md"
+                      >
+                        Save Checksheet Changes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. DUPLICATE FORM MODAL */}
+              {duplicatingForm && (
+                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2">
+                        <Copy className="w-5 h-5 text-amber-500" />
+                        <h4 className="font-black text-base text-slate-950">Duplicate Checksheet</h4>
+                      </div>
+                      <button onClick={() => setDuplicatingForm(null)} className="text-slate-400 hover:text-slate-700">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      Clone all sections and items from <b>"{duplicatingForm.title}"</b> to another store location outlet.
+                    </p>
+
+                    <div className="space-y-3 text-xs">
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Target Location Outlet *</label>
+                        <select
+                          value={duplicateTargetLoc}
+                          onChange={(e) => {
+                            const newLoc = e.target.value;
+                            setDuplicateTargetLoc(newLoc);
+                            setDuplicateNewTitle(`${newLoc} - ${duplicatingForm.title.replace(/^[A-Z]{2,4}\s*-\s*/i, '')} (Copy)`);
+                          }}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="CH">CH - Chantilly</option>
+                          <option value="LB">LB - Leesburg</option>
+                          <option value="VN">VN - Vienna</option>
+                          <option value="HD">HD - Herndon</option>
+                          <option value="BW">BW - Bristow</option>
+                          <option value="CM">CM - Commissary</option>
+                          <option value="AR">AR - Arlington</option>
+                          <option value="AS">AS - Ashburn</option>
+                          <option value="BK">BK - Burke</option>
+                          <option value="FX">FX - Fairfax</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">New Form Title *</label>
+                        <input
+                          type="text"
+                          value={duplicateNewTitle}
+                          onChange={(e) => setDuplicateNewTitle(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setDuplicatingForm(null)}
+                        className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmDuplicateForm}
+                        className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs uppercase cursor-pointer shadow-md"
+                      >
+                        Clone Checksheet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. DELETE CONFIRMATION MODAL */}
+              {deletingForm && (
+                <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                        <Trash2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-base text-slate-950">Delete Checksheet?</h4>
+                        <p className="text-xs text-slate-500">This action will remove the form from store staff views.</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 space-y-1">
+                      <p className="font-bold">{deletingForm.title}</p>
+                      <p className="text-[11px] text-red-600 font-mono">Store: {deletingForm.locationCode} • Cycle: {deletingForm.frequency}</p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setDeletingForm(null)}
+                        className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmDeleteForm}
+                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl text-xs uppercase cursor-pointer shadow-md"
+                      >
+                        Yes, Delete Checksheet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h4 className="font-bold text-slate-900 text-base">Checksheet Authoring Access Restricted</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Only the Super Admin (Michael Goyone) or staff assigned with the <code>canManageForms</code> permission in Settings can add, edit, or delete inventory checksheets.
+              </p>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -4727,6 +5689,7 @@ export default function AdminPanels({
                     { key: 'canAccessAdmin', label: '8. Access Admin Operations Center', desc: 'View database items, locations, sync engines, and integration panels' },
                     { key: 'canManageUsers', label: '9. Manage Employees & Staff Accounts', desc: 'Create, suspend, lock, or adjust user profiles and security roles' },
                     { key: 'canManageSettings', label: '10. Manage System Global Settings', desc: 'Configure order recipient emails, footer templates, and permissions' },
+                    { key: 'canManageForms', label: '11. Author & Manage Checksheet Forms', desc: 'Add new store checksheets, edit sections & items, duplicate to other outlets, or delete checksheets. (Restricted to Super Admin Michael Goyone by default)' },
                   ].map((row, idx) => (
                     <tr key={row.key} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <td className="py-3 px-4">
@@ -4822,6 +5785,273 @@ export default function AdminPanels({
               </div>
             </div>
           </div>
+
+          {/* SECTION 3: OFFICIAL JOB CODES & POSITION CLASSIFICATIONS */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden space-y-0">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-base sm:text-lg text-white font-display">
+                      Official Job Codes & Position Classifications
+                    </h4>
+                    <span className="bg-amber-500 text-slate-950 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {jobCodesList.length} Job Codes
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Enterprise hierarchy (EXEC-01 to LOG-07) and active permission scopes across all Anita's restaurant locations.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddJobCodeModal(true)}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-xs active:scale-95 transition cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Add Job Code</span>
+              </button>
+            </div>
+
+            {/* Job Codes Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-mono text-[11px] uppercase tracking-wider">
+                    <th className="py-3 px-4 font-black">Code & Department</th>
+                    <th className="py-3 px-3 font-bold">Position Title</th>
+                    <th className="py-3 px-3 font-bold">System Role Binding</th>
+                    <th className="py-3 px-3 font-bold">Active Privileges</th>
+                    <th className="py-3 px-3 text-right font-bold pr-4">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-sans">
+                  {jobCodesList.map((job, idx) => {
+                    const mappedPerms = rolePermissionsMatrix[job.role] || defaultRolePermissions[job.role] || defaultRolePermissions['Employee'];
+                    const activePermCount = Object.values(mappedPerms || {}).filter(Boolean).length;
+                    return (
+                      <tr key={job.code} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        {/* Code & Dept */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="font-mono text-xs font-black px-2 py-0.5 rounded-lg border text-white shadow-2xs"
+                              style={{ backgroundColor: job.color || '#3b82f6', borderColor: job.color || '#3b82f6' }}
+                            >
+                              {job.code}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500 font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                              {job.department}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-1 max-w-xs">{job.description}</p>
+                        </td>
+
+                        {/* Title */}
+                        <td className="py-3.5 px-3">
+                          <span className="font-bold text-slate-900 text-sm">{job.title}</span>
+                          {job.isSystemProtected && (
+                            <span className="block text-[9px] font-mono font-bold text-amber-700 uppercase mt-0.5">
+                              🔒 Protected Root Code
+                            </span>
+                          )}
+                        </td>
+
+                        {/* System Role Binding */}
+                        <td className="py-3.5 px-3">
+                          <span className="bg-slate-900 text-white font-mono text-[10px] font-bold px-2 py-1 rounded-lg">
+                            {job.role}
+                          </span>
+                        </td>
+
+                        {/* Active Privileges */}
+                        <td className="py-3.5 px-3">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md">
+                              {activePermCount} Permissions Active
+                            </span>
+                            {mappedPerms?.canCount && (
+                              <span className="bg-slate-100 text-slate-700 text-[9px] font-medium px-1.5 py-0.5 rounded border border-slate-200">
+                                Count
+                              </span>
+                            )}
+                            {mappedPerms?.canOrder && (
+                              <span className="bg-slate-100 text-slate-700 text-[9px] font-medium px-1.5 py-0.5 rounded border border-slate-200">
+                                Order
+                              </span>
+                            )}
+                            {mappedPerms?.canManageForms && (
+                              <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-300">
+                                Manage Forms
+                              </span>
+                            )}
+                            {mappedPerms?.canAccessAdmin && (
+                              <span className="bg-indigo-100 text-indigo-900 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-200">
+                                Admin Access
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3.5 px-3 text-right pr-4">
+                          {job.isSystemProtected ? (
+                            <span className="text-[10px] font-mono text-slate-400 font-bold">
+                              Permanent
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteJobCode(job.code)}
+                              className="p-1.5 hover:bg-red-50 text-red-600 hover:text-red-700 rounded-lg transition"
+                              title={`Delete Job Code ${job.code}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Job Codes Footer Action Bar */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <span className="text-slate-500 font-mono">
+                Job codes are linked to staff account creation and payroll reference sheets.
+              </span>
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                Save All Settings & Job Codes
+              </button>
+            </div>
+          </div>
+
+          {/* ADD JOB CODE MODAL */}
+          {showAddJobCodeModal && (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 flex items-center justify-center">
+                      <Key className="w-4 h-4" />
+                    </div>
+                    <h4 className="font-black text-base text-slate-950">Add Enterprise Job Code</h4>
+                  </div>
+                  <button onClick={() => setShowAddJobCodeModal(false)} className="text-slate-400 hover:text-slate-700">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Job Code *</label>
+                      <input
+                        type="text"
+                        value={newJobCode.code}
+                        onChange={(e) => setNewJobCode(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                        placeholder="e.g. MGR-08"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-mono font-bold focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Badge Color</label>
+                      <input
+                        type="color"
+                        value={newJobCode.color}
+                        onChange={(e) => setNewJobCode(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-full h-9 border border-slate-300 rounded-xl p-1 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Job Position Title *</label>
+                    <input
+                      type="text"
+                      value={newJobCode.title}
+                      onChange={(e) => setNewJobCode(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="e.g. Shift Lead Supervisor"
+                      className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Department</label>
+                      <select
+                        value={newJobCode.department}
+                        onChange={(e) => setNewJobCode(prev => ({ ...prev, department: e.target.value as any }))}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Executive">Executive</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Front of House">Front of House</option>
+                        <option value="Back of House">Back of House</option>
+                        <option value="Logistics">Logistics</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Mapped Role *</label>
+                      <select
+                        value={newJobCode.role}
+                        onChange={(e) => setNewJobCode(prev => ({ ...prev, role: e.target.value }))}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Manager">Manager</option>
+                        <option value="District Manager">District Manager</option>
+                        <option value="Cashier">Cashier</option>
+                        <option value="Cook">Cook</option>
+                        <option value="Employee">Employee</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600 uppercase font-mono text-[10px]">Job Description</label>
+                    <textarea
+                      value={newJobCode.description}
+                      onChange={(e) => setNewJobCode(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Describe the duties and responsibilities for this job code..."
+                      rows={2}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddJobCodeModal(false)}
+                    className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddJobCode}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs uppercase cursor-pointer shadow-md"
+                  >
+                    Save Job Code
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

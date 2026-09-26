@@ -4,7 +4,7 @@ import {
   MapPin, ShieldCheck, UserCheck, Search, ArrowLeft, Volume2, 
   Bell, FileDown, Lock, Mail, Users, Compass, AlertTriangle, 
   Layers, CheckCircle2, ChevronRight, User, Terminal, Camera, 
-  FolderGit2, FileSpreadsheet
+  FolderGit2, FileSpreadsheet, QrCode, Copy, Check, ExternalLink, X
 } from 'lucide-react';
 
 import { UserRole, Location, InventoryItem, InventoryForm, FormSubmission } from './types';
@@ -19,20 +19,19 @@ import AppLogo from './components/AppLogo';
 import { GitHubPushModal } from './components/GitHubPushModal';
 import ExcelImportModal from './components/ExcelImportModal';
 import { allOfficialStoreForms, allOfficialStoreItems } from './data/storeFormsData';
+import { getStoredForms } from './utils/formStorage';
 
 export default function App() {
   // Dual-Platform Workspace view
   const [platformView, setPlatformView] = useState<'app_simulator' | 'android_code'>('app_simulator');
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+  const [showMobileQrModal, setShowMobileQrModal] = useState(false);
+  const [copiedTunnelLink, setCopiedTunnelLink] = useState(false);
+  const [formCountingMode, setFormCountingMode] = useState<'manual' | 'voice'>('manual');
 
-  // Dynamic Forms and Items state (preloaded with all 214 official store checksheets from OneDrive + sampleForms)
-  const [formsList, setFormsList] = useState<InventoryForm[]>(() => {
-    const map = new Map<string, InventoryForm>();
-    allOfficialStoreForms.forEach(f => map.set(f.id, f));
-    sampleForms.forEach(f => map.set(f.id, f));
-    return Array.from(map.values());
-  });
+  // Dynamic Forms and Items state (preloaded with OneDrive 2026 checksheets + localStorage custom/edited)
+  const [formsList, setFormsList] = useState<InventoryForm[]>(() => getStoredForms());
   const [itemsList, setItemsList] = useState<InventoryItem[]>(() => {
     const map = new Map<string, InventoryItem>();
     allOfficialStoreItems.forEach(i => map.set(i.id, i));
@@ -167,6 +166,18 @@ export default function App() {
               <FileSpreadsheet className="w-3.5 h-3.5 stroke-2" />
               <span className="hidden sm:inline">Upload Excel</span>
               <span className="sm:hidden">Excel</span>
+            </button>
+
+            {/* 📱 Scan for Mobile QR Code Button */}
+            <button
+              type="button"
+              onClick={() => setShowMobileQrModal(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold font-mono text-xs shadow-md transition border border-indigo-400/40 cursor-pointer active:scale-95"
+              title="Open and test The Commissary on your cellphone using QR code"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">📱 Scan for Mobile</span>
+              <span className="sm:hidden">📱 Phone</span>
             </button>
 
             {/* Quick Platform Workspace View Mode Toggle */}
@@ -500,8 +511,8 @@ export default function App() {
                       </h4>
 
                       <div className="divide-y text-xs">
-                        {sampleForms.filter(f => simUser.assignedLocations.includes(f.locationCode)).map((form) => (
-                          <div key={form.id} className="py-3 flex items-center justify-between gap-3 first:pt-0 last:pb-0">
+                        {formsList.filter(f => simUser.assignedLocations.includes(f.locationCode) || f.locationCode === 'STORE' || simUser.role === 'Super Admin').slice(0, 5).map((form) => (
+                          <div key={form.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 first:pt-0 last:pb-0">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="bg-slate-900 text-amber-500 text-[8px] font-bold px-1.5 py-0.5 rounded font-mono">
@@ -514,16 +525,33 @@ export default function App() {
                               </p>
                             </div>
 
-                            <button
-                              onClick={() => {
-                                setSelectedForm(form);
-                                setSelectedLocCode(form.locationCode);
-                                setCurrentScreen('counting');
-                              }}
-                              className="px-3.5 py-1.5 bg-amber-500 text-slate-950 font-black rounded-lg text-xs uppercase cursor-pointer"
-                            >
-                              Count (Manual)
-                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
+                              <button
+                                onClick={() => {
+                                  setSelectedForm(form);
+                                  setSelectedLocCode(form.locationCode);
+                                  setFormCountingMode('voice');
+                                  setCurrentScreen('counting');
+                                }}
+                                className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-black rounded-lg text-xs uppercase cursor-pointer flex items-center justify-center gap-1 shadow-xs active:scale-95 transition"
+                                title="Start hands-free voice counting on this checksheet"
+                              >
+                                <Mic className="w-3.5 h-3.5 text-slate-950" />
+                                <span>Voice Count</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setSelectedForm(form);
+                                  setSelectedLocCode(form.locationCode);
+                                  setFormCountingMode('manual');
+                                  setCurrentScreen('counting');
+                                }}
+                                className="flex-1 sm:flex-initial px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold rounded-lg text-xs uppercase cursor-pointer flex items-center justify-center transition"
+                              >
+                                <span>Manual</span>
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -760,20 +788,43 @@ export default function App() {
                                     </p>
                                   </div>
 
-                                  <button
-                                    disabled={!isUserLinked}
-                                    onClick={() => {
-                                      setSelectedForm(form);
-                                      setCurrentScreen('counting');
-                                    }}
-                                    className={`px-4 py-2 border rounded-xl text-xs font-bold uppercase transition shrink-0 ${
-                                      isUserLinked 
-                                        ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-600 cursor-pointer shadow-xs active:scale-95' 
-                                        : 'bg-slate-100 text-slate-400 border-slate-200/70 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    Launch Count
-                                  </button>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      disabled={!isUserLinked}
+                                      onClick={() => {
+                                        setSelectedForm(form);
+                                        setSelectedLocCode(form.locationCode);
+                                        setFormCountingMode('voice');
+                                        setCurrentScreen('counting');
+                                      }}
+                                      className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                                        isUserLinked 
+                                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 border border-amber-400 cursor-pointer' 
+                                          : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                      }`}
+                                      title="Launch hands-free voice counting"
+                                    >
+                                      <Mic className="w-3.5 h-3.5 text-slate-950" />
+                                      <span>Voice Count</span>
+                                    </button>
+
+                                    <button
+                                      disabled={!isUserLinked}
+                                      onClick={() => {
+                                        setSelectedForm(form);
+                                        setSelectedLocCode(form.locationCode);
+                                        setFormCountingMode('manual');
+                                        setCurrentScreen('counting');
+                                      }}
+                                      className={`px-3 py-2 border rounded-xl text-xs font-bold uppercase transition flex items-center gap-1 ${
+                                        isUserLinked 
+                                          ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 cursor-pointer' 
+                                          : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <span>Manual</span>
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -809,6 +860,7 @@ export default function App() {
                 <InventoryFormCounting 
                   form={selectedForm}
                   currentUser={simUser}
+                  initialMode={formCountingMode}
                   onBack={() => setCurrentScreen('forms')}
                   onSubmitSuccess={(id) => {
                     setCompletedSubId(id);
@@ -925,7 +977,20 @@ export default function App() {
                   <ArrowLeft className="w-4 h-4" /> Back to Dashboard
                 </button>
 
-                <AdminPanels simUser={simUser} setSimUser={setSimUser} />
+                <AdminPanels 
+                  simUser={simUser} 
+                  setSimUser={setSimUser}
+                  forms={formsList}
+                  setForms={setFormsList}
+                  items={itemsList}
+                  setItems={setItemsList}
+                  onOpenForm={(form, mode) => {
+                    setSelectedForm(form);
+                    setSelectedLocCode(form.locationCode);
+                    setFormCountingMode(mode || 'manual');
+                    setCurrentScreen('counting');
+                  }}
+                />
               </div>
             )}
 
@@ -1126,6 +1191,120 @@ export default function App() {
         onClose={() => setShowExcelImportModal(false)}
         onImportSuccess={handleExcelImportSuccess}
       />
+
+      {/* 📱 Mobile Preview QR Code Modal */}
+      {showMobileQrModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 animate-scaleUp my-8">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
+                  <QrCode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-black text-base sm:text-lg text-slate-950 font-display">
+                    Scan with Mobile Phone
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Live Cloudflare Tunnel Preview • Hands-Free Voice Counting
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMobileQrModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-center flex flex-col items-center justify-center space-y-3">
+              <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                <img
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=https%3A%2F%2Fminiature-christina-sizes-method.trycloudflare.com"
+                  alt="The Commissary Mobile QR Code"
+                  className="w-52 h-52 sm:w-60 sm:h-60 object-contain mx-auto rounded-lg"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Active HTTPS Tunnel Ready to Scan</span>
+              </div>
+            </div>
+
+            {/* Link Box & Copy Button */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                Public HTTPS Mobile URL:
+              </label>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-2 rounded-xl border border-slate-200">
+                <input
+                  type="text"
+                  readOnly
+                  value="https://miniature-christina-sizes-method.trycloudflare.com"
+                  className="bg-transparent text-xs font-mono text-slate-800 flex-1 outline-none font-semibold truncate"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://miniature-christina-sizes-method.trycloudflare.com");
+                    setCopiedTunnelLink(true);
+                    setTimeout(() => setCopiedTunnelLink(false), 2500);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                    copiedTunnelLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-900 text-amber-400 hover:bg-slate-800'
+                  }`}
+                >
+                  {copiedTunnelLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Local WiFi URL alternative */}
+            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-[11px] font-mono text-slate-600 space-y-1">
+              <p className="font-bold text-slate-800">Same Wi-Fi Local Network IP:</p>
+              <p className="text-amber-800 font-bold select-all">http://192.168.1.157:3000</p>
+              <p className="text-[10px] text-slate-400">Use on devices connected to the same restaurant Wi-Fi router.</p>
+            </div>
+
+            {/* Instructions list */}
+            <div className="text-[11px] text-slate-600 space-y-1.5 font-sans bg-amber-50/60 border border-amber-200/60 rounded-xl p-3">
+              <p className="font-bold text-amber-950 flex items-center gap-1">
+                <span>💡 Quick Testing Instructions:</span>
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5 text-amber-900 text-[10.5px]">
+                <li>Open your Camera app on your iPhone or Android and point at the QR code.</li>
+                <li>Tap the link banner that appears to open in Safari or Chrome.</li>
+                <li>Tap <b>🎙️ Voice Count</b> on any checksheet to test real-time speech recognition!</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t">
+              <button
+                type="button"
+                onClick={() => setShowMobileQrModal(false)}
+                className="w-full py-2.5 bg-slate-950 hover:bg-slate-800 text-white font-bold rounded-xl text-xs uppercase cursor-pointer transition active:scale-95"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

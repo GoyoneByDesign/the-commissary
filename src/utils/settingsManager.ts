@@ -1,11 +1,72 @@
-import { AppSettings, RolePermissions, UserRole } from '../types';
+import { AppSettings, RolePermissions, JobCodeDefinition, UserRole } from '../types';
 
 const SETTINGS_STORAGE_KEY = 'the_commissary_app_settings_v1';
+
+export const defaultJobCodes: JobCodeDefinition[] = [
+  {
+    code: 'EXEC-01',
+    title: 'Super Admin',
+    role: 'Super Admin',
+    department: 'Executive',
+    description: 'Master administrative authority over all company locations, checksheets, users, and financials.',
+    color: '#f59e0b',
+    isSystemProtected: true
+  },
+  {
+    code: 'DM-02',
+    title: 'District Manager',
+    role: 'District Manager',
+    department: 'Operations',
+    description: 'Multi-store oversight, checksheet validation, ordering verification, and variance audits.',
+    color: '#6366f1'
+  },
+  {
+    code: 'GM-03',
+    title: 'General Manager',
+    role: 'Manager',
+    department: 'Operations',
+    description: 'Store manager on duty. Completes official inventory, reviews food par levels, and finalizes orders.',
+    color: '#10b981'
+  },
+  {
+    code: 'AM-04',
+    title: 'Assistant Manager',
+    role: 'Manager',
+    department: 'Operations',
+    description: 'Shift supervisor assisting in inventory counts, section checklists, and receiving goods.',
+    color: '#06b6d4'
+  },
+  {
+    code: 'FOH-05',
+    title: 'Cashier / Front of House',
+    role: 'Cashier',
+    department: 'Front of House',
+    description: 'Fast hands-free voice counting and manual counting of front cooler, dry storage, and bar supplies.',
+    color: '#ec4899'
+  },
+  {
+    code: 'BOH-06',
+    title: 'Cook / Kitchen Staff',
+    role: 'Cook',
+    department: 'Back of House',
+    description: 'Sub-zero freezer and walk-in cooler inventory counts by voice. Simplified counting and ordering.',
+    color: '#f97316'
+  },
+  {
+    code: 'LOG-07',
+    title: 'Commissary Logistics',
+    role: 'Admin',
+    department: 'Logistics',
+    description: 'Central commissary inventory tracking, bulk distribution, and wholesale invoice management.',
+    color: '#8b5cf6'
+  }
+];
 
 export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Super Admin': {
     canCount: true,
     canOrder: true,
+    canManageForms: true, // Only Michael Goyone has this by default!
     canDownloadExcel: true,
     canEmailOrders: true,
     canViewCosts: true,
@@ -18,6 +79,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'District Manager': {
     canCount: true,
     canOrder: true,
+    canManageForms: false,
     canDownloadExcel: true,
     canEmailOrders: true,
     canViewCosts: true,
@@ -30,6 +92,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Manager': {
     canCount: true,
     canOrder: true,
+    canManageForms: false,
     canDownloadExcel: true,
     canEmailOrders: true,
     canViewCosts: true,
@@ -42,6 +105,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Cashier': {
     canCount: true,
     canOrder: true,
+    canManageForms: false,
     canDownloadExcel: false,
     canEmailOrders: false,
     canViewCosts: false,
@@ -54,6 +118,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Cook': {
     canCount: true,
     canOrder: true,
+    canManageForms: false,
     canDownloadExcel: false,
     canEmailOrders: false,
     canViewCosts: false,
@@ -66,6 +131,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Employee': {
     canCount: true,
     canOrder: false,
+    canManageForms: false,
     canDownloadExcel: false,
     canEmailOrders: false,
     canViewCosts: false,
@@ -78,6 +144,7 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
   'Admin': {
     canCount: true,
     canOrder: true,
+    canManageForms: true,
     canDownloadExcel: true,
     canEmailOrders: true,
     canViewCosts: true,
@@ -92,7 +159,8 @@ export const defaultRolePermissions: Record<string, RolePermissions> = {
 export const defaultAppSettings: AppSettings = {
   orderEmailRecipient: 'michael.goyone@gmail.com',
   footerFormatTemplate: '[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])',
-  rolePermissions: defaultRolePermissions
+  rolePermissions: defaultRolePermissions,
+  jobCodes: defaultJobCodes
 };
 
 export function getAppSettings(): AppSettings {
@@ -106,7 +174,8 @@ export function getAppSettings(): AppSettings {
         rolePermissions: {
           ...defaultRolePermissions,
           ...(parsed.rolePermissions || {})
-        }
+        },
+        jobCodes: parsed.jobCodes && parsed.jobCodes.length > 0 ? parsed.jobCodes : defaultJobCodes
       };
     }
   } catch (e) {
@@ -123,7 +192,8 @@ export function saveAppSettings(settings: Partial<AppSettings>): AppSettings {
     rolePermissions: {
       ...current.rolePermissions,
       ...(settings.rolePermissions || {})
-    }
+    },
+    jobCodes: settings.jobCodes || current.jobCodes || defaultJobCodes
   };
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));

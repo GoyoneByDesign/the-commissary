@@ -185,6 +185,7 @@ export interface UploadedInvoice {
 export interface RolePermissions {
   canCount: boolean;
   canOrder: boolean;
+  canManageForms: boolean; // Add, edit, duplicate, and delete inventory checksheets
   canDownloadExcel: boolean;
   canEmailOrders: boolean;
   canViewCosts: boolean;
@@ -195,10 +196,21 @@ export interface RolePermissions {
   canManageSettings: boolean;
 }
 
+export interface JobCodeDefinition {
+  code: string;        // e.g. "EXEC-01", "DM-02", "GM-03", etc.
+  title: string;       // e.g. "Super Admin", "District Manager"
+  role: string;        // matches role key in rolePermissions
+  department: 'Executive' | 'Operations' | 'Front of House' | 'Back of House' | 'Logistics';
+  description: string;
+  color: string;       // hex or tailwind color class
+  isSystemProtected?: boolean; // Super Admin cannot be removed
+}
+
 export interface AppSettings {
   orderEmailRecipient: string; // default michael.goyone@gmail.com
   footerFormatTemplate: string; // default "[FILENAME]_[DATE]_[INITIALS] ([INITIALS] [DATE_SLASH])"
   rolePermissions: Record<string, RolePermissions>;
+  jobCodes?: JobCodeDefinition[];
 }
 
 
